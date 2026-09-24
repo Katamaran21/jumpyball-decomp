@@ -249,3 +249,64 @@ jobs:
         with:
           name: jumpyball-android
           path: build-android/app/build/outputs/apk/debug/*.apk
+
+  windows-ce:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # cegcc's prebuilt host binaries are 32-bit x86 ELF (gcc 4.4.0), so the
+      # runner needs the i386 C/C++ runtime to run the cross compiler itself.
+      - name: Install the i386 runtime
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y libc6:i386 libstdc++6:i386 zlib1g:i386
+
+      - name: Cache the cegcc (mingw32ce) toolchain
+        id: cegcc
+        uses: actions/cache@v4
+        with:
+          path: /opt/mingw32ce
+          key: mingw32ce-0.59.1
+
+      # The tarball unpacks to opt/mingw32ce/, which is build_wince.sh's default
+      # CEGCC prefix, so extract it at the filesystem root.
+      - name: Fetch the arm-mingw32ce toolchain
+        if: steps.cegcc.outputs.cache-hit != 'true'
+        run: |
+          url=https://downloads.sourceforge.net/project/cegcc/cegcc/0.59.1/mingw32ce-0.59.1.tar.bz2
+          curl -fsSL -o /tmp/mingw32ce.tar.bz2 "$url"
+          sudo tar -xjf /tmp/mingw32ce.tar.bz2 -C /
+
+      - name: Toolchain sanity check
+        run: /opt/mingw32ce/bin/arm-mingw32ce-gcc --version
+
+      # Two artifacts, mirroring the desktop windows job: the default build that
+      # looks for BITMAP/Sounds/Musics beside the .exe, and the EMBED=1 build
+      # that packs them in for a single self-contained jumpyball.exe.
+      - name: Build (assets beside the exe)
+        run: OUT=build-wince sh tools/build_wince.sh
+
+      - name: Build (assets embedded, self-contained)
+        run: OUT=build-wince-embed EMBED=1 sh tools/build_wince.sh
+
+      - name: Confirm the outputs are ARM PE executables
+        run: |
+          for exe in build-wince/jumpyball.exe build-wince-embed/jumpyball.exe; do
+            echo "$exe: $(file "$exe")"
+            file "$exe" | grep -q 'PE32.*ARM' || {
+              echo "$exe is not an ARM PE image"
+              exit 1
+            }
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jumpyball-windows-ce
+          path: |
+            build-wince/jumpyball.exe
+            build-wince/BITMAP
+            build-wince/Sounds
+            build-wince/Musics
+            build-wince-embed/jumpyball.exe
