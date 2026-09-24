@@ -40,7 +40,8 @@ SRC="jb_appassets.c jb_assets.c jb_audio.c jb_ball.c jb_bmp.c jb_gfx.c \
 jb_gfx_tile.c jb_keyconfig.c jb_level.c jb_main.c jb_menu.c jb_mod.c \
 jb_mod_effects.c jb_player.c jb_stage.c jb_text.c jb_track.c \
 jb_trackrow_forest.c jb_trackrow_grass.c jb_trackrow_ice_alt.c \
-jb_trackrow_sky.c jb_trackrow_tiled.c jb_platform_win32.c jb_audio_win32.c"
+jb_trackrow_sky.c jb_trackrow_tiled.c jb_platform_win32.c jb_audio_win32.c \
+jb_touch_win32.c"
 
 if [ "$EMBED" != "0" ]; then
     "$PYTHON" tools/gen_embed.py --root . --out jb_embed_data.c

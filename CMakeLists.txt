@@ -49,7 +49,8 @@ if(JUMPYBALL_BACKEND STREQUAL "win32")
                 "with -DCMAKE_TOOLCHAIN_FILE=tools/toolchain-mingw-w64.cmake, or "
                 "build the Windows CE binary with tools/build_wince.sh.")
     endif()
-    list(APPEND JUMPYBALL_SOURCES jb_platform_win32.c jb_audio_win32.c)
+    list(APPEND JUMPYBALL_SOURCES jb_platform_win32.c jb_audio_win32.c
+                                  jb_touch_win32.c)
 elseif(JUMPYBALL_BACKEND STREQUAL "sdl2")
     list(APPEND JUMPYBALL_SOURCES jb_platform_sdl2.c jb_audio_sdl2.c
                                   jb_touch_sdl2.c)

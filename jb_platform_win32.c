@@ -16,6 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "jb_touch_win32.h"
+
 #define JB_PATH_W 512
 #define JB_MSG_W  2048
 
@@ -33,6 +35,7 @@ static int       jb_dst_w;
 static int       jb_dst_h;
 static int       jb_keys[JB_KEY_COUNT];
 static int       jb_running;
+static int       jb_touch;
 
 /* JumpyBall.exe WndProc 0x0001fd2c compares the incoming VK code against
    g_keyLeft, g_keyRight, g_keyUp, g_keyDown, g_keyJump and g_keyMenu.  These
@@ -153,12 +156,20 @@ static void BlitToDC(HDC dc)
 {
     if (jb_memdc == NULL)
         return;
+    if (jb_touch) {
+        RECT rc;
+
+        if (GetClientRect(jb_hwnd, &rc))
+            FillRect(dc, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    }
     if (jb_dst_w == jb_w && jb_dst_h == jb_h) {
         BitBlt(dc, jb_dst_x, jb_dst_y, jb_w, jb_h, jb_memdc, 0, 0, SRCCOPY);
-        return;
+    } else {
+        StretchBlt(dc, jb_dst_x, jb_dst_y, jb_dst_w, jb_dst_h, jb_memdc, 0, 0,
+                   jb_w, jb_h, SRCCOPY);
     }
-    StretchBlt(dc, jb_dst_x, jb_dst_y, jb_dst_w, jb_dst_h, jb_memdc, 0, 0,
-               jb_w, jb_h, SRCCOPY);
+    if (jb_touch)
+        TouchW_Draw(dc);
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -206,6 +217,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_ACTIVATE:
         Platform_AudioPause(LOWORD(wp) == WA_INACTIVE);
         return 0;
+    case WM_LBUTTONDOWN:
+        if (jb_touch) {
+            SetCapture(hwnd);
+            TouchW_PointerDown((int)(short)LOWORD(lp), (int)(short)HIWORD(lp));
+        }
+        return 0;
+    case WM_MOUSEMOVE:
+        if (jb_touch && (wp & MK_LBUTTON))
+            TouchW_PointerMove((int)(short)LOWORD(lp), (int)(short)HIWORD(lp));
+        return 0;
+    case WM_LBUTTONUP:
+        if (jb_touch) {
+            ReleaseCapture();
+            TouchW_PointerUp();
+        }
+        return 0;
     default:
         break;
     }
@@ -234,6 +261,15 @@ static void HideShell(HWND hwnd)
                  JB_SHFS_HIDESTARTICON);
 }
 #endif
+
+static int TouchWanted(void)
+{
+#ifdef JB_WINCE
+    return 1;
+#else
+    return getenv("JUMPYBALL_TOUCH") != NULL;
+#endif
+}
 
 int Platform_Init(int w, int h, int scale, const char *title)
 {
@@ -313,6 +349,18 @@ int Platform_Init(int w, int h, int scale, const char *title)
         jb_dst_h = client_h;
     jb_dst_x = (client_w - jb_dst_w) / 2;
     jb_dst_y = (client_h - jb_dst_h) / 2;
+
+    jb_touch = TouchWanted();
+    if (jb_touch) {
+        int gx, gy, gw, gh;
+
+        TouchW_Layout(client_w, client_h, w, h);
+        TouchW_GameRect(&gx, &gy, &gw, &gh);
+        jb_dst_x = gx;
+        jb_dst_y = gy;
+        jb_dst_w = gw;
+        jb_dst_h = gh;
+    }
 
     /* JumpyBall.exe Game_Init 0x000113bc passes 0 to Gfx_CreateBackBuffer
        0x00021698 when g_viewH 0x0002626c is not 0xf0, so g_clipHRow 0x000269e8
@@ -396,11 +444,9 @@ void Platform_Present(void)
     ReleaseDC(jb_hwnd, dc);
 }
 
-/* The touch overlay lives in jb_touch_sdl2.c and draws through SDL_Renderer,
-   so the native backend has no touch pad; handhelds use their own keys. */
 int Platform_TouchActive(void)
 {
-    return 0;
+    return jb_touch;
 }
 
 int Platform_KeyBinding(int key)
@@ -453,7 +499,7 @@ int Platform_KeyDown(int key)
 {
     if (key < 0 || key >= JB_KEY_COUNT)
         return 0;
-    return jb_keys[key] ? 1 : 0;
+    return (jb_keys[key] || (jb_touch && TouchW_Down(key))) ? 1 : 0;
 }
 
 unsigned Platform_Ticks(void)
