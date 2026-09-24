@@ -427,7 +427,9 @@ int main(int argc, char **argv)
     jb_pl.checkpoint_y  = jb_checkpoint_y;
     jb_pl.checkpoint_n  = &jb_checkpoint_n;
     jb_pl.z_axis_damped = 0;
+    JB_DBG(6);
     Player_Respawn(&jb_pl);
+    JB_DBG(7);
 
     /* JumpyBall.exe Level_Begin 0x0001376c stores 0 to g_hudR 0x00026280,
        g_hudG 0x00026284 and g_hudB 0x00026288 while g_theme 0x00026370 is 0. */
@@ -465,7 +467,9 @@ int main(int argc, char **argv)
     jb_kc.view_center_x = JB_VIEW_CENTER_X;
     jb_kc.active        = 0;
     jb_kc.step          = 0;
+    JB_DBG(0);
     KeyConfig_Load();
+    JB_DBG(3);
 
     jb_back       = back;
     jb_dump_path  = dump_path;
@@ -477,6 +481,7 @@ int main(int argc, char **argv)
         Menu_ScreenSet(&jb_m, start_screen, start_index);
         Audio_MusicPlay(JB_MUS_MENU);
     }
+    JB_DBG(1);
 
 #ifdef __EMSCRIPTEN__
     /* The browser owns the frame clock: hand Frame to requestAnimationFrame
@@ -484,7 +489,6 @@ int main(int argc, char **argv)
        keeps calling Frame after this returns. */
     emscripten_set_main_loop(Frame, 0, 1);
 #else
-    JB_DBG(6);
     while (!jb_should_quit)
         Frame();
 #endif
