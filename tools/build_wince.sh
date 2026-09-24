@@ -23,6 +23,13 @@ fi
 
 cd "$(dirname "$0")/.."
 
+# Assets are copied next to the .exe by default.  Set EMBED=1 to instead pack
+# BITMAP/Sounds/Musics into the executable (tools/gen_embed.py -> jb_embed_data.c,
+# jb_embed.c resolves paths against it) so a single self-contained jumpyball.exe
+# runs on a device with nothing beside it.
+EMBED=${EMBED:-0}
+PYTHON=${PYTHON:-python3}
+
 # cegcc's windows.h uses "inline" in kfuncs.h, which -std=c89 rejects, so the
 # port is compiled as gnu89: the same C89 code, with the keyword still a
 # keyword.  tools/c89check.cmd and the Linux CI job cover strict conformance.
@@ -35,6 +42,12 @@ jb_mod_effects.c jb_player.c jb_stage.c jb_text.c jb_track.c \
 jb_trackrow_forest.c jb_trackrow_grass.c jb_trackrow_ice_alt.c \
 jb_trackrow_sky.c jb_trackrow_tiled.c jb_platform_win32.c jb_audio_win32.c"
 
+if [ "$EMBED" != "0" ]; then
+    "$PYTHON" tools/gen_embed.py --root . --out jb_embed_data.c
+    CFLAGS="$CFLAGS -DJB_EMBED"
+    SRC="$SRC jb_embed.c jb_embed_data.c"
+fi
+
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
@@ -42,11 +55,16 @@ mkdir -p "$OUT"
 "$CC" $CFLAGS -o "$OUT/jumpyball.exe" $SRC $LDFLAGS
 "$STRIP" "$OUT/jumpyball.exe"
 
-for dir in BITMAP Sounds Musics; do
-    mkdir -p "$OUT/$dir"
-    cp "$dir"/* "$OUT/$dir/"
-done
+if [ "$EMBED" != "0" ]; then
+    echo "BUILD OK (assets embedded): $OUT/jumpyball.exe"
+    echo "Copy the single jumpyball.exe to the device and run it - no folders needed."
+else
+    for dir in BITMAP Sounds Musics; do
+        mkdir -p "$OUT/$dir"
+        cp "$dir"/* "$OUT/$dir/"
+    done
 
-echo "BUILD OK: $OUT/jumpyball.exe"
-echo "Copy $OUT to the device, e.g. \\Program Files\\JumpyBall, and run"
-echo "jumpyball.exe there - it looks for BITMAP/Sounds/Musics next to itself."
+    echo "BUILD OK: $OUT/jumpyball.exe"
+    echo "Copy $OUT to the device, e.g. \\Program Files\\JumpyBall, and run"
+    echo "jumpyball.exe there - it looks for BITMAP/Sounds/Musics next to itself."
+fi

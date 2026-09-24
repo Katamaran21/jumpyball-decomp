@@ -10,6 +10,7 @@ set(CMAKE_C_EXTENSIONS ON)
 option(JUMPYBALL_WARNINGS "Enable the full warning set" ON)
 option(JUMPYBALL_BUILD_TOOLS "Build tools/modtest" OFF)
 option(JUMPYBALL_COPY_ASSETS "Copy BITMAP/Sounds/Musics next to the binary" ON)
+option(JUMPYBALL_EMBED_ASSETS "Compile BITMAP/Sounds/Musics into the executable" OFF)
 
 # sdl2 is the portable backend (jb_platform_sdl2.c).  win32 is the native
 # Win32 / Windows CE one (jb_platform_win32.c): GDI for the screen, waveOut
@@ -73,7 +74,30 @@ else()
     message(FATAL_ERROR "JUMPYBALL_BACKEND must be sdl2 or win32")
 endif()
 
+if(JUMPYBALL_EMBED_ASSETS)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(JB_EMBED_DATA ${CMAKE_CURRENT_SOURCE_DIR}/jb_embed_data.c)
+    file(GLOB JB_EMBED_INPUTS
+         ${CMAKE_CURRENT_SOURCE_DIR}/BITMAP/*.bmp
+         ${CMAKE_CURRENT_SOURCE_DIR}/Sounds/*
+         ${CMAKE_CURRENT_SOURCE_DIR}/Musics/*)
+    add_custom_command(
+        OUTPUT ${JB_EMBED_DATA}
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_embed.py
+                --root ${CMAKE_CURRENT_SOURCE_DIR} --out ${JB_EMBED_DATA}
+        DEPENDS ${JB_EMBED_INPUTS}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_embed.py
+        COMMENT "Embedding assets into jb_embed_data.c")
+    list(APPEND JUMPYBALL_SOURCES jb_embed.c ${JB_EMBED_DATA})
+    set(JUMPYBALL_COPY_ASSETS OFF)
+endif()
+
 add_executable(jumpyball WIN32 ${JUMPYBALL_SOURCES})
+
+if(JUMPYBALL_EMBED_ASSETS)
+    target_compile_definitions(jumpyball PRIVATE JB_EMBED)
+endif()
 
 if(JUMPYBALL_BACKEND STREQUAL "win32")
     target_compile_definitions(jumpyball PRIVATE JB_BACKEND_WIN32)

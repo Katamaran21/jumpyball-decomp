@@ -7,6 +7,10 @@
    the narrow strings the game passes are widened on the way in. */
 #include "jb_platform.h"
 
+#ifdef JB_EMBED
+#include "jb_embed.h"
+#endif
+
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -576,6 +580,13 @@ int Platform_FileExists(const char *path)
 {
     WCHAR wide[JB_PATH_W];
 
+#ifdef JB_EMBED
+    {
+        long n;
+        if (Embed_Find(path, &n))
+            return 1;
+    }
+#endif
     return GetFileAttributesW(ToPath(path, wide, JB_PATH_W)) != 0xffffffffu;
 }
 
@@ -586,6 +597,13 @@ unsigned char *Platform_ReadFile(const char *path, long *out_len)
     DWORD          size, got;
     unsigned char *buf;
 
+#ifdef JB_EMBED
+    {
+        unsigned char *e = Embed_Read(path, out_len);
+        if (e)
+            return e;
+    }
+#endif
     fh = CreateFileW(ToPath(path, wide, JB_PATH_W), GENERIC_READ,
                      FILE_SHARE_READ, NULL, OPEN_EXISTING,
                      FILE_ATTRIBUTE_NORMAL, NULL);

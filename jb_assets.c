@@ -3,6 +3,10 @@
 #include "jb_consts.h"
 #include "jb_platform.h"
 
+#ifdef JB_EMBED
+#include "jb_embed.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +62,11 @@ int Assets_Init(void)
 
     jb_fail[0] = '\0';
     jb_root[0] = '\0';
+
+#ifdef JB_EMBED
+    if (Embed_Count() > 0)
+        return 1;
+#endif
 
     if (TryRoot(env, ""))
         return 1;

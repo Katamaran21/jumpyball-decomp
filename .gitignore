@@ -10,3 +10,4 @@ dist/
 *.ilk
 *.7z
 keys.cfg
+jb_embed_data.c

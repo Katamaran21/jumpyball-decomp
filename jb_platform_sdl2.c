@@ -1,6 +1,10 @@
 #include "jb_platform.h"
 #include "jb_touch_sdl2.h"
 
+#ifdef JB_EMBED
+#include "jb_embed.h"
+#endif
+
 #include <SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -285,8 +289,16 @@ const char *Platform_PrefPath(void)
 
 int Platform_FileExists(const char *path)
 {
-    SDL_RWops *rw = SDL_RWFromFile(path, "rb");
+    SDL_RWops *rw;
 
+#ifdef JB_EMBED
+    {
+        long n;
+        if (Embed_Find(path, &n))
+            return 1;
+    }
+#endif
+    rw = SDL_RWFromFile(path, "rb");
     if (rw == NULL)
         return 0;
     SDL_RWclose(rw);
@@ -299,6 +311,13 @@ unsigned char *Platform_ReadFile(const char *path, long *out_len)
     Sint64         size;
     unsigned char *buf;
 
+#ifdef JB_EMBED
+    {
+        unsigned char *e = Embed_Read(path, out_len);
+        if (e)
+            return e;
+    }
+#endif
     rw = SDL_RWFromFile(path, "rb");
     if (rw == NULL)
         return NULL;
