@@ -27,6 +27,13 @@
 
 #define JB_MSG_MAX 2048
 
+#ifdef JB_BACKEND_GBA
+void Platform_DebugMarker(int idx);
+#define JB_DBG(n) Platform_DebugMarker(n)
+#else
+#define JB_DBG(n) ((void)0)
+#endif
+
 /* JumpyBall.exe Player_Respawn 0x00012f18 stores 0x32 zero words at g_rowShift
    0x00061930, and Level_Begin 0x0001376c refills it from g_rowShiftSrc
    0x0002f6d8, whose generator writes 0 to every entry while g_altTrackMode
@@ -290,6 +297,8 @@ int main(int argc, char **argv)
     int         start_index = 0;
     int         i;
 
+    JB_DBG(0);
+
     for (i = 1; i < argc; i++) {
         if (!strncmp(argv[i], "--level=", 8))
             start_level = atoi(argv[i] + 8);
@@ -318,6 +327,8 @@ int main(int argc, char **argv)
     }
     back = Platform_BackBuffer();
 
+    JB_DBG(1);
+
     if (!Assets_Init()) {
         char msg[JB_MSG_MAX];
         /* Windows CE has no process environment, so pointing the player at
@@ -343,17 +354,23 @@ int main(int argc, char **argv)
        before the first Screen_Set 0x00013678. */
     Audio_Init();
 
+    JB_DBG(2);
+
     /* JumpyBall.exe Game_Init 0x000113bc builds g_rowProjOfs 0x00061438 and
        g_texVStep 0x00035238 before the first Track_DrawFrame 0x0001dd54. */
     Gfx_BuildScaleTables();
     Track_BuildProjTables();
     Gfx_BuildTexVStep();
 
+    JB_DBG(3);
+
     if (!AppAssets_Load(back)) {
         AppAssets_Free();
         Platform_Shutdown();
         return 1;
     }
+
+    JB_DBG(4);
 
     /* JumpyBall.exe Game_Init 0x000113bc calls Font_Load 0x0001f4d8 before the
        first Screen_Set 0x00013678. */
@@ -369,6 +386,8 @@ int main(int argc, char **argv)
         Platform_Shutdown();
         return 1;
     }
+
+    JB_DBG(5);
 
     jb_ctx.screen      = back;
     jb_ctx.tex_water_h = &jb_a.tex_water_h;
@@ -465,6 +484,7 @@ int main(int argc, char **argv)
        keeps calling Frame after this returns. */
     emscripten_set_main_loop(Frame, 0, 1);
 #else
+    JB_DBG(6);
     while (!jb_should_quit)
         Frame();
 #endif
