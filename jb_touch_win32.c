@@ -38,7 +38,7 @@ static int HitTest(int x, int y)
 
 void TouchW_Layout(int win_w, int win_h, int game_w, int game_h)
 {
-    int pad_h, view_h, cell, margin, side;
+    int cell, margin, side, dpad_top;
     int gw, gh;
 
     if (win_w == jb_win_w && win_h == jb_win_h)
@@ -46,32 +46,35 @@ void TouchW_Layout(int win_w, int win_h, int game_w, int game_h)
     jb_win_w = win_w;
     jb_win_h = win_h;
 
-    cell = (win_w < win_h ? win_w : win_h) / 7;
-    if (cell > win_h / 9)
-        cell = win_h / 9;
-    margin = cell / 4;
+    /* The pad overlays the game: a small dpad in the lower-left, jump in the
+       lower-right, menu in the upper-right, each cell about a ninth of the
+       short screen edge. */
+    cell = (win_w < win_h ? win_w : win_h) / 9;
+    if (cell > win_h / 12)
+        cell = win_h / 12;
+    margin = cell / 3;
     side   = cell + cell / 2;
-    pad_h  = 3 * cell + 2 * margin;
-    view_h = win_h - pad_h;
 
+    /* The game rect spans the whole window; the pad draws on top of it. */
     gw = win_w;
     gh = game_h * gw / game_w;
-    if (gh > view_h) {
-        gh = view_h;
+    if (gh > win_h) {
+        gh = win_h;
         gw = game_w * gh / game_h;
     }
     jb_game.x = (win_w - gw) / 2;
-    jb_game.y = (view_h - gh) / 2;
+    jb_game.y = (win_h - gh) / 2;
     jb_game.w = gw;
     jb_game.h = gh;
 
-    SetPad(JB_KEY_UP, margin + cell, view_h, cell, cell);
-    SetPad(JB_KEY_LEFT, margin, view_h + cell, cell, cell);
-    SetPad(JB_KEY_RIGHT, margin + 2 * cell, view_h + cell, cell, cell);
-    SetPad(JB_KEY_DOWN, margin + cell, view_h + 2 * cell, cell, cell);
+    dpad_top = win_h - margin - 3 * cell;
+    SetPad(JB_KEY_UP, margin + cell, dpad_top, cell, cell);
+    SetPad(JB_KEY_LEFT, margin, dpad_top + cell, cell, cell);
+    SetPad(JB_KEY_RIGHT, margin + 2 * cell, dpad_top + cell, cell, cell);
+    SetPad(JB_KEY_DOWN, margin + cell, dpad_top + 2 * cell, cell, cell);
     SetPad(JB_KEY_JUMP, win_w - margin - side, win_h - margin - side, side,
             side);
-    SetPad(JB_KEY_MENU, win_w - margin - cell, view_h + margin, cell, cell);
+    SetPad(JB_KEY_MENU, win_w - margin - cell, margin, cell, cell);
 }
 
 void TouchW_GameRect(int *x, int *y, int *w, int *h)
@@ -148,7 +151,6 @@ void TouchW_Draw(HDC dc)
     static const int dir_x[JB_KEY_COUNT] = { -1, 1, 0, 0, 0, 0 };
     static const int dir_y[JB_KEY_COUNT] = { 0, 0, -1, 1, -1, 0 };
     HBRUSH  down_br = CreateSolidBrush(RGB(0x60, 0x90, 0xd0));
-    HBRUSH  up_br   = CreateSolidBrush(RGB(0x20, 0x20, 0x28));
     HPEN    pen     = CreatePen(PS_SOLID, 1, RGB(0xd0, 0xd0, 0xd8));
     HGDIOBJ oldpen  = SelectObject(dc, pen);
     HGDIOBJ oldbr   = SelectObject(dc, GetStockObject(NULL_BRUSH));
@@ -161,7 +163,8 @@ void TouchW_Draw(HDC dc)
         rc.top    = jb_pad[k].y;
         rc.right  = jb_pad[k].x + jb_pad[k].w;
         rc.bottom = jb_pad[k].y + jb_pad[k].h;
-        FillRect(dc, &rc, jb_down[k] ? down_br : up_br);
+        if (jb_down[k])
+            FillRect(dc, &rc, down_br);
         Rectangle(dc, rc.left, rc.top, rc.right, rc.bottom);
         if (k == JB_KEY_MENU)
             Bars(dc, &jb_pad[k]);
@@ -173,5 +176,4 @@ void TouchW_Draw(HDC dc)
     SelectObject(dc, oldpen);
     DeleteObject(pen);
     DeleteObject(down_br);
-    DeleteObject(up_br);
 }

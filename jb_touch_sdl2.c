@@ -39,7 +39,7 @@ static int HitTest(int x, int y)
 
 void Touch_Layout(int win_w, int win_h, int game_w, int game_h)
 {
-    int pad_h, view_h, cell, margin, side;
+    int cell, margin, side, dpad_top;
     int gw, gh;
 
     if (win_w == jb_win_w && win_h == jb_win_h)
@@ -47,32 +47,35 @@ void Touch_Layout(int win_w, int win_h, int game_w, int game_h)
     jb_win_w = win_w;
     jb_win_h = win_h;
 
-    cell = (win_w < win_h ? win_w : win_h) / 7;
-    if (cell > win_h / 9)
-        cell = win_h / 9;
-    margin = cell / 4;
+    /* The pad overlays the game: a small dpad in the lower-left, jump in the
+       lower-right, menu in the upper-right, each cell about a ninth of the
+       short screen edge. */
+    cell = (win_w < win_h ? win_w : win_h) / 9;
+    if (cell > win_h / 12)
+        cell = win_h / 12;
+    margin = cell / 3;
     side   = cell + cell / 2;
-    pad_h  = 3 * cell + 2 * margin;
-    view_h = win_h - pad_h;
 
+    /* The game rect spans the whole window; the pad draws on top of it. */
     gw = win_w;
     gh = game_h * gw / game_w;
-    if (gh > view_h) {
-        gh = view_h;
+    if (gh > win_h) {
+        gh = win_h;
         gw = game_w * gh / game_h;
     }
     jb_game.x = (win_w - gw) / 2;
-    jb_game.y = (view_h - gh) / 2;
+    jb_game.y = (win_h - gh) / 2;
     jb_game.w = gw;
     jb_game.h = gh;
 
-    SetRect(JB_KEY_UP, margin + cell, view_h, cell, cell);
-    SetRect(JB_KEY_LEFT, margin, view_h + cell, cell, cell);
-    SetRect(JB_KEY_RIGHT, margin + 2 * cell, view_h + cell, cell, cell);
-    SetRect(JB_KEY_DOWN, margin + cell, view_h + 2 * cell, cell, cell);
+    dpad_top = win_h - margin - 3 * cell;
+    SetRect(JB_KEY_UP, margin + cell, dpad_top, cell, cell);
+    SetRect(JB_KEY_LEFT, margin, dpad_top + cell, cell, cell);
+    SetRect(JB_KEY_RIGHT, margin + 2 * cell, dpad_top + cell, cell, cell);
+    SetRect(JB_KEY_DOWN, margin + cell, dpad_top + 2 * cell, cell, cell);
     SetRect(JB_KEY_JUMP, win_w - margin - side, win_h - margin - side, side,
             side);
-    SetRect(JB_KEY_MENU, win_w - margin - cell, view_h + margin, cell, cell);
+    SetRect(JB_KEY_MENU, win_w - margin - cell, margin, cell, cell);
 }
 
 const SDL_Rect *Touch_GameRect(void)
@@ -188,7 +191,7 @@ void Touch_Draw(SDL_Renderer *ren)
         if (jb_down[k])
             SDL_SetRenderDrawColor(ren, 0x60, 0x90, 0xd0, 0xd0);
         else
-            SDL_SetRenderDrawColor(ren, 0x20, 0x20, 0x28, 0xa0);
+            SDL_SetRenderDrawColor(ren, 0x20, 0x20, 0x28, 0x50);
         SDL_RenderFillRect(ren, &jb_pad[k]);
         SDL_SetRenderDrawColor(ren, 0xd0, 0xd0, 0xd8, 0xff);
         SDL_RenderDrawRect(ren, &jb_pad[k]);
