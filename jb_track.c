@@ -3,7 +3,9 @@
 
 int jb_row_proj_ofs[JB_PROJ_TABLE_N + 1];
 int jb_row_height[JB_PROJ_TABLE_N + 1];
+#ifndef JB_TABLES_ROM
 short jb_tex_vstep[JB_TEX_VSTEP_ROWS * JB_TEX_VSTEP_STRIDE];
+#endif
 
 /* JumpyBall.exe Game_Init 0x000113bc 0x000114f4 and Track_DrawFrame 0x0001dd54
    0x0001e1f8: __divs(__muls(t, kProjNum), __adds(__muls(t, kProjDenA), kProjDenB))
@@ -64,6 +66,12 @@ void Track_BuildProjTables(void)
 
 /* JumpyBall.exe Game_Init 0x00011560: per row h, __divs(100.0, __itos(h))
    accumulated by __adds and stored through __stoi, floored at 1. */
+#ifdef JB_TABLES_ROM
+/* jb_tex_vstep is const in cartridge ROM (tools/gen_tables.py). */
+void Gfx_BuildTexVStep(void)
+{
+}
+#else
 void Gfx_BuildTexVStep(void)
 {
     int h, k;
@@ -81,6 +89,7 @@ void Gfx_BuildTexVStep(void)
         }
     }
 }
+#endif
 
 void Track_DrawFrame(const jb_track_state *st, jb_track_row_fn draw, void *user)
 {

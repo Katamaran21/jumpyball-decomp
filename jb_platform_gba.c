@@ -54,9 +54,11 @@
 #define GBA_TIMER_HZ         16384u
 
 /* One row taller than the view, matching the win32 DIB: Game_Init keeps
-   g_clipHRow at 320 and Blit_TileH admits y == h.  240 x 321 x 2 bytes is about
-   154 KB, in EWRAM where devkitARM places .bss (256 KB total). */
-static uint16_t   jb_backbuf[JB_VIEW_W * (JB_VIEW_H + 1)];
+   g_clipHRow at 320 and Blit_TileH admits y == h.  240 x 321 x 2 is about
+   154 KB, far larger than the 32 KB IWRAM that gba.specs gives .bss, so it
+   goes to EWRAM (256 KB) via .sbss, which the devkitARM gba crt0 zero-fills. */
+static uint16_t   jb_backbuf[JB_VIEW_W * (JB_VIEW_H + 1)]
+    __attribute__((section(".sbss")));
 static jb_surface jb_back;
 static int        jb_w;
 static int        jb_h;

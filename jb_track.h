@@ -53,7 +53,11 @@ extern int jb_row_height[JB_PROJ_TABLE_N + 1];   /* g_rowHeight 0x000614a8 */
 
 void Gfx_BuildTexVStep(void);
 
+#ifdef JB_TABLES_ROM
+extern const short jb_tex_vstep[JB_TEX_VSTEP_ROWS * JB_TEX_VSTEP_STRIDE];
+#else
 extern short jb_tex_vstep[JB_TEX_VSTEP_ROWS * JB_TEX_VSTEP_STRIDE];
+#endif
 
 /* JumpyBall.exe Track_DrawFrame 0x0001dd54. */
 void Track_DrawFrame(const jb_track_state *st, jb_track_row_fn draw, void *user);

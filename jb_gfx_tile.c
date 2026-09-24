@@ -10,6 +10,16 @@
 #define JB_T44_STRIDE  50
 #define JB_T44_ROWS    50
 
+#ifdef JB_TABLES_ROM
+/* jb_step100 lives in cartridge ROM (tools/gen_tables.py -> jb_tables_rom.c);
+   jb_step64/jb_step44 are generated there too but, as on every backend, never
+   read, so only jb_step100 needs a declaration here. */
+extern const short jb_step100[JB_T100_ROWS * JB_T100_STRIDE];
+
+void Gfx_BuildScaleTables(void)
+{
+}
+#else
 static short jb_step100[JB_T100_ROWS * JB_T100_STRIDE];
 static short jb_step64[JB_T64_ROWS * JB_T64_STRIDE];
 static short jb_step44[JB_T44_ROWS * JB_T44_STRIDE];
@@ -34,6 +44,7 @@ void Gfx_BuildScaleTables(void)
     BuildStepTable(jb_step64, JB_T64_STRIDE, 63, 64.0f);
     BuildStepTable(jb_step44, JB_T44_STRIDE, 49, 44.0f);
 }
+#endif
 
 /* JumpyBall.exe Blit_TileHV_Core 0x000228e8: each axis picks table row
    (100 + v%100) with hold count (v/100 - 1) when v > 100, else row v. */

@@ -11,3 +11,5 @@ dist/
 *.7z
 keys.cfg
 jb_embed_data.c
+jb_tables_rom.c
+__pycache__/
