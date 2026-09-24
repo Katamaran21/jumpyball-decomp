@@ -55,6 +55,20 @@ mkdir -p "$OUT"
 "$CC" $CFLAGS -o "$OUT/jumpyball.elf" $SRC $LDFLAGS
 "$OBJCOPY" -O binary "$OUT/jumpyball.elf" "$OUT/jumpyball.gba"
 
+# Static footprint report.  The GBA has 256 KB EWRAM (VMA 0x0200_xxxx) plus
+# 32 KB IWRAM (VMA 0x0300_xxxx); an over-budget .bss/.data does not fail the
+# link, it silently corrupts at runtime, so the section VMAs and the largest
+# symbols are printed here to show which region each lands in.
+SIZE=${SIZE:-$DEVKITARM/bin/arm-none-eabi-size}
+OBJDUMP=${OBJDUMP:-$DEVKITARM/bin/arm-none-eabi-objdump}
+NM=${NM:-$DEVKITARM/bin/arm-none-eabi-nm}
+echo "=== jumpyball.elf section sizes ==="
+"$SIZE" -A -x "$OUT/jumpyball.elf"
+echo "=== jumpyball.elf section headers (VMA -> region) ==="
+"$OBJDUMP" -h "$OUT/jumpyball.elf"
+echo "=== jumpyball.elf largest symbols ==="
+"$NM" --print-size --size-sort --radix=x "$OUT/jumpyball.elf" | tail -30
+
 # gbafix writes the Nintendo logo and header checksum a real cartridge needs;
 # emulators run the raw binary without it, so a missing gbafix is a warning.
 if [ -x "$GBAFIX" ]; then
