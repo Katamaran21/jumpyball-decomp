@@ -18,6 +18,9 @@
    backend in jb_platform_win32.c links no SDL at all and needs no shim. */
 #include <SDL_main.h>
 #endif
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +41,14 @@ static jb_stage        jb_stg;
 static jb_menu         jb_m;
 static jb_keyconfig    jb_kc;
 static int             jb_key_prev[JB_KEY_COUNT];
+
+/* The per-frame body runs from a callback so a browser can drive it through
+   requestAnimationFrame (emscripten_set_main_loop); the state the loop carried
+   as main() locals lives here so the callback keeps it between frames. */
+static jb_surface     *jb_back;
+static unsigned        jb_prev_ticks;
+static const char     *jb_dump_path;
+static int             jb_should_quit;
 
 /* JumpyBall.exe Game_Init 0x000113bc leaves g_appMode 0x00064a24 at 1 through
    the first Screen_Set 0x00013678. */
@@ -142,17 +153,141 @@ static int PumpKeys(void)
     return act;
 }
 
+/* jumpyball JumpyBall.exe WndProc 0x0001fd2c runs one iteration of the message
+   pump, the g_dtMs update at 0x00020920 and Game_DrawFrame per turn; this is
+   that turn, split out so a rAF-driven host can call it. */
+static void Frame(void)
+{
+    unsigned ticks;
+    float    dt;
+    int      act;
+    int      i;
+
+    if (!Platform_PollEvents()) {
+        jb_should_quit = 1;
+        return;
+    }
+
+    ticks = Platform_Ticks();
+
+    /* JumpyBall.exe WndProc 0x00020920 takes g_dtMs 0x00064968 as
+       GetTickCount() - DAT_0006496c and 0x00020974 scales it by 0.001. */
+    dt            = (float)(ticks - jb_prev_ticks) * 0.001f;
+    jb_prev_ticks = ticks;
+
+    /* jumpyball JumpyBall.exe WndProc 0x0001fd2c tests g_inKeyConfig before
+       the g_appMode dispatch and returns straight after the wizard store. */
+    if (jb_kc.active) {
+        int code;
+
+        while (jb_kc.active &&
+               (code = Platform_NextRawKey()) != JB_KEY_UNBOUND)
+            KeyConfig_KeyDown(&jb_kc, code);
+
+        if (!jb_kc.active) {
+            for (i = 0; i < JB_KEY_COUNT; i++)
+                jb_key_prev[i] = Platform_KeyDown(i) ? 1 : 0;
+            Platform_FlushRawKeys();
+        }
+    } else {
+        act = PumpKeys();
+        if (act == JB_MENU_QUIT) {
+            jb_should_quit = 1;
+            return;
+        }
+        if (act == JB_MENU_KEYCONFIG)
+            KeyConfig_Begin(&jb_kc);
+        if (act == JB_MENU_PLAY) {
+            jb_mode         = JB_MODE_GAME;
+            jb_pl.auto_jump = jb_m.auto_jump;
+            ticks           = Platform_Ticks();
+            jb_prev_ticks   = ticks;
+            BeginLevel(jb_m.index, ticks);
+        }
+    }
+    /* JB_FRAME_BODY_TAIL */
+    if (jb_mode == JB_MODE_GAME) {
+        Stage_Step(&jb_stg, ticks);
+
+        /* JumpyBall.exe WndProc 0x00020934 "cmp r0,#0x0" with blt jumps to
+           LAB_00020940 Game_DrawFrame, skipping input, physics and the
+           camera while g_timeSec 0x00064a44 is negative. */
+        if (!Stage_Frozen(&jb_stg)) {
+            Player_Step(&jb_pl, dt);
+            if (jb_pl.landed) {
+                jb_pl.landed = 0;
+                Audio_Play(JB_SND_BOUNCE);
+            }
+        }
+
+        /* JumpyBall.exe WndProc 0x00020920 "cmp r0,#0x3fe" with bgt sleeps
+           1000 ms, raises g_maxLevelUnlocked to g_menuIndex + 1 and calls
+           Screen_Set 0x00013678 with 1 and g_menuIndex + 1. */
+        if (Stage_Cleared(&jb_stg, jb_pl.cam_row)) {
+            int next = jb_stg.level + 1;
+
+            Platform_Delay(JB_LEVEL_CLEAR_PAUSE_MS);
+            if (jb_stg.max_unlocked <= next)
+                jb_stg.max_unlocked = next;
+            jb_m.max_unlocked = jb_stg.max_unlocked;
+            Menu_ScreenSet(&jb_m, JB_SCREEN_LEVELS, next);
+            Audio_MusicPlay(JB_MUS_MENU);
+            jb_mode       = JB_MODE_MENU;
+            jb_prev_ticks = Platform_Ticks();
+        }
+    }
+
+    if (jb_kc.active) {
+        KeyConfig_DrawFrame(&jb_kc);
+    } else if (jb_mode == JB_MODE_MENU) {
+        Menu_DrawFrame(&jb_m);
+    } else {
+        jb_st.cam_row       = jb_pl.cam_row;
+        jb_st.cam_pixel_ofs = jb_pl.cam_pixel_ofs;
+        jb_st.ball_prev_x   = jb_pl.ball_prev_x;
+        jb_ctx.cam_row      = jb_st.cam_row;
+        jb_ctx.anim_ms      = (int)jb_stg.anim_ms;
+
+        /* JumpyBall.exe Level_Begin 0x0001376c fills g_backdrop 0x00061b28
+           with Blit_NoKey 0x00023a3c of g_viewW x g_viewH from the theme
+           bitmap LoadBitmapW picked for g_theme 0x00064944. */
+        Blit_NoKey(jb_back, 0, 0, JB_VIEW_W, JB_VIEW_H,
+                   (jb_stg.backdrop_res == JB_RES_BACKDROP_DESERT)
+                       ? &jb_a.backdrop_desert : &jb_a.backdrop_ice, 0, 0);
+
+        Track_DrawFrame(&jb_st, DrawRow, &jb_ctx);
+
+        jb_ball_st.ball_y     = jb_pl.ball_y;
+        jb_ball_st.ball_vel_z = jb_pl.vel_z;
+        jb_ball_st.ball_spin  = jb_pl.spin;
+        Ball_DrawFrame(&jb_ball_st);
+        if (jb_ball_st.layout_mode == JB_LAYOUT_240x320)
+            Timer_DrawHud(jb_back, jb_pl.cam_row, jb_ball_st.hud_r,
+                          jb_ball_st.hud_g, jb_ball_st.hud_b);
+    }
+
+    Platform_Present();
+
+    if (jb_dump_path && ticks > 1500u) {
+        FILE *fp = fopen(jb_dump_path, "wb");
+
+        if (fp) {
+            fwrite(jb_back->pixels, sizeof(uint16_t),
+                   (size_t)JB_VIEW_W * (size_t)JB_VIEW_H, fp);
+            fclose(fp);
+        }
+        jb_should_quit = 1;
+    }
+}
+
 int main(int argc, char **argv)
 {
     jb_surface *back;
     const char *dump_path = 0;
-    unsigned    ticks, prev_ticks;
-    float       dt;
     int         scale = 0;
     int         start_level = -1;
     int         start_screen = JB_SCREEN_MAIN;
     int         start_index = 0;
-    int         act;
     int         i;
 
     for (i = 1; i < argc; i++) {
@@ -313,125 +448,26 @@ int main(int argc, char **argv)
     jb_kc.step          = 0;
     KeyConfig_Load();
 
-    prev_ticks = Platform_Ticks();
+    jb_back       = back;
+    jb_dump_path  = dump_path;
+    jb_prev_ticks = Platform_Ticks();
     if (start_level >= 0) {
         jb_mode = JB_MODE_GAME;
-        BeginLevel(start_level, prev_ticks);
+        BeginLevel(start_level, jb_prev_ticks);
     } else {
         Menu_ScreenSet(&jb_m, start_screen, start_index);
         Audio_MusicPlay(JB_MUS_MENU);
     }
 
-    while (Platform_PollEvents()) {
-        ticks = Platform_Ticks();
-
-        /* JumpyBall.exe WndProc 0x00020920 takes g_dtMs 0x00064968 as
-           GetTickCount() - DAT_0006496c and 0x00020974 scales it by 0.001. */
-        dt         = (float)(ticks - prev_ticks) * 0.001f;
-        prev_ticks = ticks;
-
-        /* jumpyball JumpyBall.exe WndProc 0x0001fd2c tests g_inKeyConfig before
-           the g_appMode dispatch and returns straight after the wizard store. */
-        if (jb_kc.active) {
-            int code;
-
-            while (jb_kc.active &&
-                   (code = Platform_NextRawKey()) != JB_KEY_UNBOUND)
-                KeyConfig_KeyDown(&jb_kc, code);
-
-            if (!jb_kc.active) {
-                for (i = 0; i < JB_KEY_COUNT; i++)
-                    jb_key_prev[i] = Platform_KeyDown(i) ? 1 : 0;
-                Platform_FlushRawKeys();
-            }
-        } else {
-            act = PumpKeys();
-            if (act == JB_MENU_QUIT)
-                break;
-            if (act == JB_MENU_KEYCONFIG)
-                KeyConfig_Begin(&jb_kc);
-            if (act == JB_MENU_PLAY) {
-                jb_mode         = JB_MODE_GAME;
-                jb_pl.auto_jump = jb_m.auto_jump;
-                ticks           = Platform_Ticks();
-                prev_ticks      = ticks;
-                BeginLevel(jb_m.index, ticks);
-            }
-        }
-
-        if (jb_mode == JB_MODE_GAME) {
-            Stage_Step(&jb_stg, ticks);
-
-            /* JumpyBall.exe WndProc 0x00020934 "cmp r0,#0x0" with blt jumps to
-               LAB_00020940 Game_DrawFrame, skipping input, physics and the
-               camera while g_timeSec 0x00064a44 is negative. */
-            if (!Stage_Frozen(&jb_stg)) {
-                Player_Step(&jb_pl, dt);
-                if (jb_pl.landed) {
-                    jb_pl.landed = 0;
-                    Audio_Play(JB_SND_BOUNCE);
-                }
-            }
-
-            /* JumpyBall.exe WndProc 0x00020920 "cmp r0,#0x3fe" with bgt sleeps
-               1000 ms, raises g_maxLevelUnlocked to g_menuIndex + 1 and calls
-               Screen_Set 0x00013678 with 1 and g_menuIndex + 1. */
-            if (Stage_Cleared(&jb_stg, jb_pl.cam_row)) {
-                int next = jb_stg.level + 1;
-
-                Platform_Delay(JB_LEVEL_CLEAR_PAUSE_MS);
-                if (jb_stg.max_unlocked <= next)
-                    jb_stg.max_unlocked = next;
-                jb_m.max_unlocked = jb_stg.max_unlocked;
-                Menu_ScreenSet(&jb_m, JB_SCREEN_LEVELS, next);
-                Audio_MusicPlay(JB_MUS_MENU);
-                jb_mode    = JB_MODE_MENU;
-                prev_ticks = Platform_Ticks();
-            }
-        }
-
-        if (jb_kc.active) {
-            KeyConfig_DrawFrame(&jb_kc);
-        } else if (jb_mode == JB_MODE_MENU) {
-            Menu_DrawFrame(&jb_m);
-        } else {
-            jb_st.cam_row       = jb_pl.cam_row;
-            jb_st.cam_pixel_ofs = jb_pl.cam_pixel_ofs;
-            jb_st.ball_prev_x   = jb_pl.ball_prev_x;
-            jb_ctx.cam_row      = jb_st.cam_row;
-            jb_ctx.anim_ms      = (int)jb_stg.anim_ms;
-
-            /* JumpyBall.exe Level_Begin 0x0001376c fills g_backdrop 0x00061b28
-               with Blit_NoKey 0x00023a3c of g_viewW x g_viewH from the theme
-               bitmap LoadBitmapW picked for g_theme 0x00064944. */
-            Blit_NoKey(back, 0, 0, JB_VIEW_W, JB_VIEW_H,
-                       (jb_stg.backdrop_res == JB_RES_BACKDROP_DESERT)
-                           ? &jb_a.backdrop_desert : &jb_a.backdrop_ice, 0, 0);
-
-            Track_DrawFrame(&jb_st, DrawRow, &jb_ctx);
-
-            jb_ball_st.ball_y     = jb_pl.ball_y;
-            jb_ball_st.ball_vel_z = jb_pl.vel_z;
-            jb_ball_st.ball_spin  = jb_pl.spin;
-            Ball_DrawFrame(&jb_ball_st);
-            if (jb_ball_st.layout_mode == JB_LAYOUT_240x320)
-                Timer_DrawHud(back, jb_pl.cam_row, jb_ball_st.hud_r,
-                              jb_ball_st.hud_g, jb_ball_st.hud_b);
-        }
-
-        Platform_Present();
-
-        if (dump_path && ticks > 1500u) {
-            FILE *fp = fopen(dump_path, "wb");
-
-            if (fp) {
-                fwrite(back->pixels, sizeof(uint16_t),
-                       (size_t)JB_VIEW_W * (size_t)JB_VIEW_H, fp);
-                fclose(fp);
-            }
-            break;
-        }
-    }
+#ifdef __EMSCRIPTEN__
+    /* The browser owns the frame clock: hand Frame to requestAnimationFrame
+       (fps 0) and let it drive.  The third argument unwinds main so the page
+       keeps calling Frame after this returns. */
+    emscripten_set_main_loop(Frame, 0, 1);
+#else
+    while (!jb_should_quit)
+        Frame();
+#endif
     AppAssets_Free();
     Platform_Shutdown();
     return 0;

@@ -250,6 +250,49 @@ jobs:
           name: jumpyball-android
           path: build-android/app/build/outputs/apk/debug/*.apk
 
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Emscripten
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
+          ./emsdk/emsdk install latest
+          ./emsdk/emsdk activate latest
+
+      - name: Build
+        run: |
+          . ./emsdk/emsdk_env.sh
+          sh tools/build_web.sh
+
+      - name: Check the web payload
+        run: |
+          cd build-web
+          for f in index.html index.js index.wasm; do
+            test -s "$f" || {
+              echo "missing or empty $f"
+              exit 1
+            }
+          done
+          # The assets are embedded (JB_EMBED) as data segments, so the wasm is
+          # far larger than a code-only module; a tiny wasm means the embed step
+          # silently dropped them.
+          size=$(stat -c%s index.wasm)
+          echo "index.wasm is $size bytes"
+          test "$size" -gt 200000 || {
+            echo "index.wasm is suspiciously small - embedded assets missing?"
+            exit 1
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jumpyball-web
+          path: |
+            build-web/index.html
+            build-web/index.js
+            build-web/index.wasm
+
   windows-ce:
     runs-on: ubuntu-24.04
     steps:

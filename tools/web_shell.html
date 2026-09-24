@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>JumpyBall</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #000; color: #ccc;
+    font-family: sans-serif; overflow: hidden;
+  }
+  #wrap {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%;
+  }
+  canvas {
+    background: #000; display: block;
+    max-width: 100vw; max-height: 100vh;
+    image-rendering: pixelated;
+    touch-action: none;
+  }
+  #status {
+    position: fixed; top: 8px; left: 0; right: 0;
+    text-align: center; font-size: 14px; color: #888;
+  }
+</style>
+</head>
+<body>
+<div id="status">loading…</div>
+<div id="wrap"><canvas id="canvas" tabindex="-1"></canvas></div>
+<script>
+  var statusEl = document.getElementById('status');
+  var canvas = document.getElementById('canvas');
+
+  // A touch device gets the on-screen dpad; a desktop keeps its keyboard.  The
+  // SDL2 backend reads JUMPYBALL_TOUCH from the environment (Platform_Init), so
+  // seed it before the runtime starts.
+  var wantTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+  var Module = {
+    canvas: canvas,
+    preRun: [function () { if (wantTouch) ENV.JUMPYBALL_TOUCH = '1'; }],
+    print: function (t) { console.log(t); },
+    printErr: function (t) { console.error(t); },
+    setStatus: function (t) {
+      if (statusEl) { statusEl.textContent = t; statusEl.style.display = t ? '' : 'none'; }
+    },
+    onRuntimeInitialized: function () { Module.setStatus(''); }
+  };
+  Module.setStatus('loading…');
+
+  // Keep arrow keys and space from scrolling the page while playing.
+  window.addEventListener('keydown', function (e) {
+    if ([32, 37, 38, 39, 40].indexOf(e.keyCode) !== -1) e.preventDefault();
+  }, false);
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>
