@@ -16,7 +16,7 @@ static int     jb_down[JB_KEY_COUNT];
 static int     jb_win_w;
 static int     jb_win_h;
 
-static void SetRect(int key, int x, int y, int w, int h)
+static void SetPad(int key, int x, int y, int w, int h)
 {
     jb_pad[key].x = x;
     jb_pad[key].y = y;
@@ -65,13 +65,13 @@ void TouchW_Layout(int win_w, int win_h, int game_w, int game_h)
     jb_game.w = gw;
     jb_game.h = gh;
 
-    SetRect(JB_KEY_UP, margin + cell, view_h, cell, cell);
-    SetRect(JB_KEY_LEFT, margin, view_h + cell, cell, cell);
-    SetRect(JB_KEY_RIGHT, margin + 2 * cell, view_h + cell, cell, cell);
-    SetRect(JB_KEY_DOWN, margin + cell, view_h + 2 * cell, cell, cell);
-    SetRect(JB_KEY_JUMP, win_w - margin - side, win_h - margin - side, side,
+    SetPad(JB_KEY_UP, margin + cell, view_h, cell, cell);
+    SetPad(JB_KEY_LEFT, margin, view_h + cell, cell, cell);
+    SetPad(JB_KEY_RIGHT, margin + 2 * cell, view_h + cell, cell, cell);
+    SetPad(JB_KEY_DOWN, margin + cell, view_h + 2 * cell, cell, cell);
+    SetPad(JB_KEY_JUMP, win_w - margin - side, win_h - margin - side, side,
             side);
-    SetRect(JB_KEY_MENU, win_w - margin - cell, view_h + margin, cell, cell);
+    SetPad(JB_KEY_MENU, win_w - margin - cell, view_h + margin, cell, cell);
 }
 
 void TouchW_GameRect(int *x, int *y, int *w, int *h)
