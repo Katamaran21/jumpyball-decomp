@@ -13,9 +13,9 @@
 #include "jb_track.h"
 #include "jb_trackrow.h"
 
-#ifndef JB_BACKEND_WIN32
-/* SDL2 renames main to SDL_main on Windows and Android.  The native Win32
-   backend in jb_platform_win32.c links no SDL at all and needs no shim. */
+#if !defined(JB_BACKEND_WIN32) && !defined(JB_BACKEND_GBA)
+/* SDL2 renames main to SDL_main on Windows and Android.  The native Win32 and
+   GBA backends link no SDL at all and need no shim. */
 #include <SDL_main.h>
 #endif
 #ifdef __EMSCRIPTEN__

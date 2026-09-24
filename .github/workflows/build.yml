@@ -374,3 +374,40 @@ jobs:
             build-wince/Sounds
             build-wince/Musics
             build-wince-embed/jumpyball.exe
+
+  gba:
+    runs-on: ubuntu-24.04
+    # devkitpro/devkitarm ships arm-none-eabi-gcc, gba.specs and gbafix with
+    # DEVKITARM and DEVKITPRO already exported, the defaults build_gba.sh uses.
+    container: devkitpro/devkitarm:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the GBA ROM
+        run: sh tools/build_gba.sh
+
+      - name: Check the ROM header and payload
+        run: |
+          rom=build-gba/jumpyball.gba
+          size=$(stat -c%s "$rom")
+          echo "$rom is $size bytes"
+          # GBATEK "GBA Cartridge Header": offset 0x04 begins the 156-byte
+          # Nintendo logo, which starts 24 FF AE 51...; gbafix writes it, so a
+          # 0x24 there proves the header was stamped.
+          logo=$(od -An -tx1 -j4 -N1 "$rom" | tr -d ' ')
+          echo "byte at 0x04: $logo"
+          test "$logo" = "24" || {
+            echo "no Nintendo logo at 0x04 - gbafix did not run"
+            exit 1
+          }
+          # The assets are embedded (JB_EMBED), so a code-only ROM would be tiny;
+          # a small ROM means the embed step silently dropped them.
+          test "$size" -gt 200000 || {
+            echo "ROM is suspiciously small - embedded assets missing?"
+            exit 1
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jumpyball-gba
+          path: build-gba/jumpyball.gba
