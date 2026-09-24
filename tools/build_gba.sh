@@ -29,8 +29,12 @@ cd "$(dirname "$0")/.."
 # devkitARM's newlib headers use "inline" in system headers, which -std=c89
 # rejects, so the port is compiled as gnu89: the same C89 code with the keyword
 # still a keyword.  tools/c89check.cmd and the Linux CI job cover strict C89.
+#
+# -specs=gba.specs goes on the link line ONLY (devkitPro convention): it pulls
+# in sync-none.specs, and passing it twice in one gcc invocation makes that
+# nested spec redefine 'link' and abort with "already defined spec".
 CFLAGS="-mthumb -mthumb-interwork -O2 -Wall -Wextra -std=gnu89 \
--DJB_BACKEND_GBA -DJB_EMBED -fno-strict-aliasing -specs=gba.specs"
+-DJB_BACKEND_GBA -DJB_EMBED -fno-strict-aliasing"
 LDFLAGS="-specs=gba.specs"
 
 SRC="jb_appassets.c jb_assets.c jb_audio.c jb_ball.c jb_bmp.c jb_gfx.c \
