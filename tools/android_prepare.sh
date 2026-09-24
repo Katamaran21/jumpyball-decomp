@@ -38,10 +38,15 @@ mkdir -p "$app/jni/src"
 find "$app/jni/src" -maxdepth 1 \( -name '*.c' -o -name '*.h' \) -delete
 # The native Win32/WinCE backend lives in the same directory, but its files
 # include <windows.h> and ndk-build compiles whatever it finds in jni/src.
+# jb_embed.c is the JB_EMBED asset-in-executable layer; it needs the generated
+# jb_embed_data.c and only compiles under -DJB_EMBED.  Android ships the assets
+# in the APK (copied into src/main/assets below), so the embed layer has no
+# place here.  Android.mk globs *.c, so copying either file would link it in.
 # Copy everything except those so the glob below cannot pick them up.
 for f in "$root"/jb_*.c "$root"/jb_*.h; do
     case ${f##*/} in
     *_win32.c) ;;
+    jb_embed.c|jb_embed_data.c) ;;
     *) cp "$f" "$app/jni/src/" ;;
     esac
 done
