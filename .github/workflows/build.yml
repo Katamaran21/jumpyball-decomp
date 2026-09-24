@@ -263,6 +263,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libc6:i386 libstdc++6:i386 zlib1g:i386
 
+      # cc1 is gcc 4.4.0 and links against the old i386 sonames libgmp.so.3 and
+      # libmpfr.so.1, which Ubuntu 24.04 no longer ships (it carries .so.10 and
+      # .so.6).  The gcc driver alone never loads them, so --version passes while
+      # the first real compile dies with "libmpfr.so.1: cannot open shared object
+      # file".  Pull both from the Debian archive and point the 32-bit loader at
+      # them for every later step.
+      - name: Install libgmp.so.3 / libmpfr.so.1 for cc1
+        run: |
+          base=http://archive.debian.org/debian/pool/main
+          curl -fsSL -o /tmp/gmp.deb  "$base/g/gmp/libgmp3c2_4.3.2+dfsg-1_i386.deb"
+          curl -fsSL -o /tmp/mpfr.deb "$base/m/mpfr/libmpfr1ldbl_2.3.1.dfsg.1-2_i386.deb"
+          dpkg -x /tmp/gmp.deb  "$GITHUB_WORKSPACE/cc1libs"
+          dpkg -x /tmp/mpfr.deb "$GITHUB_WORKSPACE/cc1libs"
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/cc1libs/usr/lib" >> "$GITHUB_ENV"
+
       - name: Cache the cegcc (mingw32ce) toolchain
         id: cegcc
         uses: actions/cache@v4
@@ -279,8 +294,14 @@ jobs:
           curl -fsSL -o /tmp/mingw32ce.tar.bz2 "$url"
           sudo tar -xjf /tmp/mingw32ce.tar.bz2 -C /
 
+      # Compile a tiny file, not just --version: the driver never loads cc1, so
+      # a bare --version passed even while cc1 was missing its shared libs.
       - name: Toolchain sanity check
-        run: /opt/mingw32ce/bin/arm-mingw32ce-gcc --version
+        run: |
+          /opt/mingw32ce/bin/arm-mingw32ce-gcc --version
+          echo 'int probe(void){return 0;}' > /tmp/probe.c
+          /opt/mingw32ce/bin/arm-mingw32ce-gcc -c /tmp/probe.c -o /tmp/probe.o
+          echo "cc1 ran: $(file /tmp/probe.o)"
 
       # Two artifacts, mirroring the desktop windows job: the default build that
       # looks for BITMAP/Sounds/Musics beside the .exe, and the EMBED=1 build
