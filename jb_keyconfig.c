@@ -4,6 +4,12 @@
 
 #include <stdio.h>
 
+#ifdef JB_MENU_HALF
+#define JB_MC(v) ((v) / 2)
+#else
+#define JB_MC(v) (v)
+#endif
+
 #define JB_KEYS_FILE "keys.cfg"
 
 static const char *KeysPath(void)
@@ -101,16 +107,17 @@ static void FillBlack(const jb_surface *dst, int w, int h)
 
 void KeyConfig_DrawFrame(const jb_keyconfig *kc)
 {
-    int x = kc->view_w - 0xb0;
+    int x = kc->view_w - JB_MC(0xb0);
 
     if (x < 0)
         x++;
     x >>= 1;
 
     FillBlack(kc->screen, kc->view_w, kc->view_h);
-    Blit(kc->screen, x, 0xf, 0xb0, 0x2a, kc->panel, kc->key, 0, 0);
-    Blit(kc->screen, x, kc->view_center_x + 0x14, 0xb0, 0x19, kc->panel,
-         kc->key, 0, kc->step * 0x19 + 0x2f);
-    Blit(kc->screen, x, kc->view_h - 0x14, 0xb0, 0x14, kc->panel, kc->key, 0,
-         0xde);
+    Blit(kc->screen, x, JB_MC(0xf), JB_MC(0xb0), JB_MC(0x2a), kc->panel, kc->key,
+         0, 0);
+    Blit(kc->screen, x, kc->view_center_x + JB_MC(0x14), JB_MC(0xb0), JB_MC(0x19),
+         kc->panel, kc->key, 0, JB_MC(kc->step * 0x19 + 0x2f));
+    Blit(kc->screen, x, kc->view_h - JB_MC(0x14), JB_MC(0xb0), JB_MC(0x14),
+         kc->panel, kc->key, 0, JB_MC(0xde));
 }

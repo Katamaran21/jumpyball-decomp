@@ -45,6 +45,21 @@
 #define JB_GAME_LAYOUT_MODE   JB_LAYOUT_240x320
 #endif
 
+/* The GBA JB_MENU_HALF build composites the menu at 120x160 - the 240x320
+   menu view scaled by exactly 1/2 - so Platform_Present ships it 1:1 with no
+   downsample; every other build keeps the 240x320 view and the /2 present. */
+#ifdef JB_MENU_HALF
+#define JB_MENU_VIEW_W        120
+#define JB_MENU_VIEW_H        160
+#define JB_MENU_VIEW_CENTER_X 60
+#define JB_MENU_PRESENT_SCALE 1
+#else
+#define JB_MENU_VIEW_W        JB_VIEW_W
+#define JB_MENU_VIEW_H        JB_VIEW_H
+#define JB_MENU_VIEW_CENTER_X JB_VIEW_CENTER_X
+#define JB_MENU_PRESENT_SCALE 2
+#endif
+
 /* JumpyBall.exe Player_Respawn 0x00012f18 stores 0x32 zero words at g_rowShift
    0x00061930, and Level_Begin 0x0001376c refills it from g_rowShiftSrc
    0x0002f6d8, whose generator writes 0 to every entry while g_altTrackMode
@@ -286,9 +301,10 @@ static void Frame(void)
 
 #ifdef JB_BACKEND_GBA
     if (jb_kc.active || jb_mode == JB_MODE_MENU)
-        Platform_SetPresentView(JB_VIEW_W, JB_VIEW_H);
+        Platform_SetPresentView(JB_MENU_VIEW_W, JB_MENU_VIEW_H,
+                                JB_MENU_PRESENT_SCALE);
     else
-        Platform_SetPresentView(JB_GAME_VIEW_W, JB_GAME_VIEW_H);
+        Platform_SetPresentView(JB_GAME_VIEW_W, JB_GAME_VIEW_H, 2);
 #endif
 
     Platform_Present();
@@ -463,9 +479,9 @@ int main(int argc, char **argv)
     jb_m.button_wide   = &jb_a.button_wide;
     jb_m.logo_small    = &jb_a.logo_small;
     jb_m.key           = jb_ctx.sign_key;
-    jb_m.view_w        = JB_VIEW_W;
-    jb_m.view_h        = JB_VIEW_H;
-    jb_m.view_center_x = JB_VIEW_CENTER_X;
+    jb_m.view_w        = JB_MENU_VIEW_W;
+    jb_m.view_h        = JB_MENU_VIEW_H;
+    jb_m.view_center_x = JB_MENU_VIEW_CENTER_X;
     jb_m.layout_mode   = JB_LAYOUT_240x320;
     jb_m.max_unlocked  = jb_stg.max_unlocked;
     jb_m.auto_jump     = jb_pl.auto_jump;
@@ -473,9 +489,9 @@ int main(int argc, char **argv)
     jb_kc.screen        = back;
     jb_kc.panel         = &jb_a.keyconfig_panel;
     jb_kc.key           = jb_ctx.sign_key;
-    jb_kc.view_w        = JB_VIEW_W;
-    jb_kc.view_h        = JB_VIEW_H;
-    jb_kc.view_center_x = JB_VIEW_CENTER_X;
+    jb_kc.view_w        = JB_MENU_VIEW_W;
+    jb_kc.view_h        = JB_MENU_VIEW_H;
+    jb_kc.view_center_x = JB_MENU_VIEW_CENTER_X;
     jb_kc.active        = 0;
     jb_kc.step          = 0;
     KeyConfig_Load();

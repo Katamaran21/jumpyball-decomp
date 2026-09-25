@@ -34,7 +34,8 @@ cd "$(dirname "$0")/.."
 # in sync-none.specs, and passing it twice in one gcc invocation makes that
 # nested spec redefine 'link' and abort with "already defined spec".
 CFLAGS="-mthumb -mthumb-interwork -O2 -Wall -Wextra -std=gnu89 \
--DJB_BACKEND_GBA -DJB_EMBED -DJB_TABLES_ROM -DJB_ASSETS_ROM -fno-strict-aliasing"
+-DJB_BACKEND_GBA -DJB_EMBED -DJB_TABLES_ROM -DJB_ASSETS_ROM -DJB_MENU_HALF \
+-fno-strict-aliasing"
 LDFLAGS="-specs=gba.specs"
 
 SRC="jb_appassets.c jb_assets.c jb_audio.c jb_ball.c jb_bmp.c jb_gfx.c \
@@ -46,7 +47,8 @@ jb_embed.c jb_embed_data.c jb_tables_rom.c jb_assets_rom.c jb_assets_rom_data.c"
 
 "$PYTHON" tools/gen_embed.py --root . --out jb_embed_data.c
 "$PYTHON" tools/gen_tables.py --out jb_tables_rom.c
-"$PYTHON" tools/gen_assets_rom.py --root . --out jb_assets_rom_data.c
+"$PYTHON" tools/gen_assets_rom.py --root . --out jb_assets_rom_data.c \
+    --half 247,248,249,250,251,253,254,308,204
 
 rm -rf "$OUT"
 mkdir -p "$OUT"

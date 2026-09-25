@@ -21,9 +21,19 @@ typedef struct {
 extern const jb_asset_rom_entry jb_assets_rom_table[];
 extern const int                jb_assets_rom_count;
 
+/* Half-size variants of the menu/keyconfig chrome and the small font, emitted
+   by gen_assets_rom.py --half for the native-120x160 GBA menu (JB_MENU_HALF).
+   Only the paths passed in --half appear here; the game shares none of them. */
+extern const jb_asset_rom_entry jb_assets_rom_half_table[];
+extern const int                jb_assets_rom_half_count;
+
 /* Zero-copy lookup, same trailing-path match as jb_embed.c Embed_Find: returns
    the ROM pixels and dimensions for a path ending in a table entry's logical
    path, or NULL if absent. */
 const uint16_t *AssetRom_Find(const char *path, int *out_w, int *out_h);
+
+/* Same match against the half-size table; NULL when the path has no half
+   variant, so the caller falls back to the full-size AssetRom_Find. */
+const uint16_t *AssetRom_FindHalf(const char *path, int *out_w, int *out_h);
 
 #endif /* JB_ASSETS_ROM_H */

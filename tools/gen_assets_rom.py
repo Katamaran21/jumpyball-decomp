@@ -87,6 +87,57 @@ def decode(data):
     return w, h, px
 
 
+def downscale_nearest(w, h, px, s):
+    # Point-sample every s-th pixel on each axis, matching jb_platform_gba.c
+    # Platform_Present 0x00021698, which samples every 2nd pixel when it packs
+    # the 240x320 buffer into the 120x160 Mode 3 framebuffer.
+    nw = w // s
+    nh = h // s
+    out = [0] * (nw * nh)
+    for y in range(nh):
+        srow = (y * s) * w
+        drow = y * nw
+        for x in range(nw):
+            out[drow + x] = px[srow + x * s]
+    return nw, nh, out
+
+
+def halve_small_font(w, h, px, s):
+    # jb_text.c ScanMarkerPairs 0x00011a30 reads row 0 of BITMAP/254 for the
+    # 0xff00ff marker (packed 0xf81f) and takes each marker pair as one glyph
+    # (glyph_x = open + 1, glyph_w = close - open - 1).  Rebuild the sheet at
+    # half glyph size: downsample each glyph's pixels and re-lay the marker
+    # pairs so the same scan yields halved glyph_x / glyph_w with no code change.
+    marker = pack16(0x00ff00ff)
+    glyphs = []
+    pair = 0
+    start = 0
+    for x in range(min(w, 0x4ba)):
+        if px[x] != marker:
+            continue
+        if pair == 0:
+            start = x + 1
+            pair = 1
+        else:
+            glyphs.append((start, x - start))
+            pair = 0
+
+    nh = h // s
+    cols = []
+    for gx, gw in glyphs:
+        ngw = max(1, (gw + 1) // s)
+        cols.append(('m', 0))
+        for k in range(ngw):
+            cols.append(('g', gx + k * s))
+        cols.append(('m', 0))
+    nw = len(cols)
+    out = [0] * (nw * nh)
+    for cx, (kind, src_x) in enumerate(cols):
+        for y in range(nh):
+            out[y * nw + cx] = marker if kind == 'm' else px[(y * s) * w + src_x]
+    return nw, nh, out
+
+
 def emit_array(out, sym, values):
     out.append('static const unsigned short %s[%d] = {' % (sym, len(values)))
     line = []
@@ -106,7 +157,13 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap.add_argument('--root', default=os.path.dirname(here))
     ap.add_argument('--out', default=None)
+    # BITMAP basenames (no extension) to additionally emit at half size for the
+    # GBA native-120x160 menu; BITMAP/254 (the small font) gets marker-aware
+    # reconstruction, the rest a point-sampled halving.
+    ap.add_argument('--half', default='')
     args = ap.parse_args()
+
+    half_set = set(n for n in args.half.split(',') if n)
 
     root = args.root
     out_path = args.out or os.path.join(root, 'jb_assets_rom_data.c')
@@ -122,6 +179,7 @@ def main():
 
     out = ['#include "jb_assets_rom.h"', '']
     syms = []
+    half_syms = []
     total = 0
     for idx, name in enumerate(names):
         with open(os.path.join(bmp_dir, name), 'rb') as f:
@@ -136,6 +194,16 @@ def main():
         syms.append(('BITMAP/' + name, sym, w, h))
         total += w * h * 2
 
+        base = os.path.splitext(name)[0]
+        if base in half_set:
+            if base == '254':
+                hw, hh, hpx = halve_small_font(w, h, px, 2)
+            else:
+                hw, hh, hpx = downscale_nearest(w, h, px, 2)
+            hsym = 'jb_arh_%d' % idx
+            emit_array(out, hsym, hpx)
+            half_syms.append(('BITMAP/' + name, hsym, hw, hh))
+
     out.append('const jb_asset_rom_entry jb_assets_rom_table[] = {')
     for logical, sym, w, h in syms:
         out.append('    { "%s", %s, %d, %d },' % (logical, sym, w, h))
@@ -145,11 +213,20 @@ def main():
     out.append('    (int)(sizeof jb_assets_rom_table / sizeof jb_assets_rom_table[0]);')
     out.append('')
 
+    out.append('const jb_asset_rom_entry jb_assets_rom_half_table[] = {')
+    for logical, sym, w, h in half_syms:
+        out.append('    { "%s", %s, %d, %d },' % (logical, sym, w, h))
+    out.append('};')
+    out.append('')
+    out.append('const int jb_assets_rom_half_count =')
+    out.append('    (int)(sizeof jb_assets_rom_half_table / sizeof jb_assets_rom_half_table[0]);')
+    out.append('')
+
     with open(out_path, 'w', newline='\n') as f:
         f.write('\n'.join(out))
 
-    sys.stderr.write('gen_assets_rom: %d bitmaps, %d bytes decoded -> %s\n'
-                     % (len(syms), total, out_path))
+    sys.stderr.write('gen_assets_rom: %d bitmaps (%d half), %d bytes decoded -> %s\n'
+                     % (len(syms), len(half_syms), total, out_path))
     return 0
 
 

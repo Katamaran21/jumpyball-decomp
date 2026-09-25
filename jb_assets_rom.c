@@ -22,16 +22,28 @@ static int EndsWith(const char *path, const char *key)
     return 1;
 }
 
-const uint16_t *AssetRom_Find(const char *path, int *out_w, int *out_h)
+static const uint16_t *FindIn(const jb_asset_rom_entry *table, int count,
+                              const char *path, int *out_w, int *out_h)
 {
     int i;
 
-    for (i = 0; i < jb_assets_rom_count; i++) {
-        if (EndsWith(path, jb_assets_rom_table[i].path)) {
-            *out_w = jb_assets_rom_table[i].w;
-            *out_h = jb_assets_rom_table[i].h;
-            return jb_assets_rom_table[i].pixels;
+    for (i = 0; i < count; i++) {
+        if (EndsWith(path, table[i].path)) {
+            *out_w = table[i].w;
+            *out_h = table[i].h;
+            return table[i].pixels;
         }
     }
     return NULL;
+}
+
+const uint16_t *AssetRom_Find(const char *path, int *out_w, int *out_h)
+{
+    return FindIn(jb_assets_rom_table, jb_assets_rom_count, path, out_w, out_h);
+}
+
+const uint16_t *AssetRom_FindHalf(const char *path, int *out_w, int *out_h)
+{
+    return FindIn(jb_assets_rom_half_table, jb_assets_rom_half_count,
+                  path, out_w, out_h);
 }

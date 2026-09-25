@@ -123,3 +123,19 @@ void Bmp_FreeSprite(jb_sprite *spr)
     spr->w = 0;
     spr->h = 0;
 }
+
+#ifdef JB_MENU_HALF
+int Bmp_LoadSpriteHalf(const jb_surface *dst, const char *path, jb_sprite *out)
+{
+    int             rw, rh;
+    const uint16_t *rom = AssetRom_FindHalf(path, &rw, &rh);
+
+    if (rom) {
+        out->pixels = (uint16_t *)rom;
+        out->w      = rw;
+        out->h      = rh;
+        return 1;
+    }
+    return Bmp_LoadSprite(dst, path, out);
+}
+#endif
