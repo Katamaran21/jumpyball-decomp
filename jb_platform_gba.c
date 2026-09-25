@@ -170,19 +170,28 @@ void Platform_Present(void)
 
     for (dy = 0; dy < GBA_SCREEN_H; dy++) {
         const uint16_t    *src = jb_backbuf + (dy * 2) * jb_w;
-        volatile uint16_t *dst = GBA_VRAM + dy * GBA_SCREEN_W + off_x;
+        volatile uint32_t *dst =
+            (volatile uint32_t *)(GBA_VRAM + dy * GBA_SCREEN_W + off_x);
         int                dx;
 
         /* GBATEK "LCD Color Definitions": the framebuffer is BGR555 (red in
            bits 0-4, blue in bits 10-14) and the game buffer is RGB565, so a
            pixel maps red 11..15 -> 0..4, the top five green bits 6..10 -> 5..9
-           (the 6-bit green drops its low bit), blue 0..4 -> 10..14. */
-        for (dx = 0; dx < jb_w / 2; dx++) {
-            unsigned p = src[dx * 2];
+           (the 6-bit green drops its low bit), blue 0..4 -> 10..14.  GBATEK
+           "GBA Memory Map": VRAM takes 16- or 32-bit accesses, so two adjacent
+           BGR555 pixels pack into one 32-bit store (low halfword first on the
+           little-endian ARM7TDMI), halving the write count. */
+        for (dx = 0; dx < jb_w / 4; dx++) {
+            unsigned p0 = src[dx * 4];
+            unsigned p1 = src[dx * 4 + 2];
+            unsigned c0 = ((p0 >> 11) & 0x001Fu) |
+                          ((p0 >> 1) & 0x03E0u) |
+                          ((p0 << 10) & 0x7C00u);
+            unsigned c1 = ((p1 >> 11) & 0x001Fu) |
+                          ((p1 >> 1) & 0x03E0u) |
+                          ((p1 << 10) & 0x7C00u);
 
-            dst[dx] = (uint16_t)(((p >> 11) & 0x001Fu) |
-                                 ((p >> 1) & 0x03E0u) |
-                                 ((p << 10) & 0x7C00u));
+            dst[dx] = c0 | (c1 << 16);
         }
     }
 }
