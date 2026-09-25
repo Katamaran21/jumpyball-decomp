@@ -4,7 +4,13 @@
 #include "jb_mod.h"
 #include "jb_mod_priv.h"
 
+#ifdef JB_BACKEND_GBA
+/* IWRAM (32 KB) cannot hold the ~26 KB mixer state alongside .bss/.data/stack;
+   put it in EWRAM. Mod_Init initializes it, and the gba crt0 zero-fills .sbss. */
+mod_state jb_M __attribute__((section(".sbss")));
+#else
 mod_state jb_M;
+#endif
 
 static int BeU16(const unsigned char *p)
 {
