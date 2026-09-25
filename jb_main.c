@@ -474,11 +474,13 @@ int main(int argc, char **argv)
     jb_back       = back;
     jb_dump_path  = dump_path;
     jb_prev_ticks = Platform_Ticks();
+    JB_DBG(7);
     if (start_level >= 0) {
         jb_mode = JB_MODE_GAME;
         BeginLevel(start_level, jb_prev_ticks);
     } else {
         Menu_ScreenSet(&jb_m, start_screen, start_index);
+        JB_DBG(2);
         Audio_MusicPlay(JB_MUS_MENU);
     }
     JB_DBG(1);
