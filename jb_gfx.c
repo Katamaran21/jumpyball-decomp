@@ -1,6 +1,8 @@
 /* Graphics core ported from JumpyBall.exe (imagebase 0x00010000). */
 #include "jb_gfx.h"
 
+#include <string.h>
+
 /* JumpyBall.exe Gfx_CreateBackBuffer 0x00021698, 0x000269e0 / 0x000269e4 /
    0x000269e8 .data initialisers. */
 int jb_clip_w     = 240;
@@ -108,6 +110,17 @@ int Blit_Core(const jb_surface *dst, int x, int y, int w, int h,
         return 0;
     drow = dst->pixels + dst->x_pitch * x + dst->y_pitch * y;
     srow = src->pixels + src->w * src_y + src_x;
+    /* Contiguous unkeyed rows reduce to a memcpy, which devkitARM turns into
+       word LDM/STM instead of the per-halfword loop; identical output. */
+    if (key == JB_NO_KEY && dst->x_pitch == 1) {
+        for (; h > 0; h--) {
+            if (cw > 0)
+                memcpy(drow, srow, (size_t)cw * sizeof(uint16_t));
+            drow += dst->y_pitch;
+            srow += src->w;
+        }
+        return 1;
+    }
     for (; h > 0; h--) {
         uint16_t *d = drow;
         const uint16_t *s = srow;
