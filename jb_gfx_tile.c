@@ -119,11 +119,19 @@ int Blit_TileH(const jb_surface *dst, int x, int y, int w, int src_row,
         s += ScaleStep(tbl, hold, &held, &n);
     if (dst->bpp != 0x10)
         return row;
-    for (i = w; i > 0; i--) {
-        if (key == JB_NO_KEY || *s != (uint16_t)key)
+    if (key == JB_NO_KEY) {
+        for (i = w; i > 0; i--) {
             *d = *s;
-        d += dst->x_pitch;
-        s += ScaleStep(tbl, hold, &held, &n);
+            d += dst->x_pitch;
+            s += ScaleStep(tbl, hold, &held, &n);
+        }
+    } else {
+        for (i = w; i > 0; i--) {
+            if (*s != (uint16_t)key)
+                *d = *s;
+            d += dst->x_pitch;
+            s += ScaleStep(tbl, hold, &held, &n);
+        }
     }
     return row;
 }
@@ -134,6 +142,7 @@ int Blit_TileHV(const jb_surface *dst, int x, int y, int w, int h,
 {
     uint16_t *drow;
     const uint16_t *srow;
+    const short *tbl_h, *tbl_v;
     int row_h, hold_h, row_v, hold_v, held_v, n_v, held0, sx, sy, cw, ch, i;
 
     row_h = ScaleRow(w, &hold_h);
@@ -161,6 +170,8 @@ int Blit_TileHV(const jb_surface *dst, int x, int y, int w, int h,
         return 0;
     drow = dst->pixels + dst->x_pitch * x + dst->y_pitch * y;
     srow = src->pixels + src->w * sy + sx;
+    tbl_h = jb_step100 + row_h * JB_T100_STRIDE;
+    tbl_v = jb_step100 + row_v * JB_T100_STRIDE;
     held_v = hold_v;
     n_v = 0;
     for (; ch > 0; ch--) {
@@ -169,15 +180,22 @@ int Blit_TileHV(const jb_surface *dst, int x, int y, int w, int h,
         int held_h = held0;
         int n_h = 0;
 
-        for (i = cw; i > 0; i--) {
-            if (key == JB_NO_KEY || *s != (uint16_t)key)
+        if (key == JB_NO_KEY) {
+            for (i = cw; i > 0; i--) {
                 *d = *s;
-            d += dst->x_pitch;
-            s += ScaleStep(jb_step100 + row_h * JB_T100_STRIDE, hold_h, &held_h, &n_h);
+                d += dst->x_pitch;
+                s += ScaleStep(tbl_h, hold_h, &held_h, &n_h);
+            }
+        } else {
+            for (i = cw; i > 0; i--) {
+                if (*s != (uint16_t)key)
+                    *d = *s;
+                d += dst->x_pitch;
+                s += ScaleStep(tbl_h, hold_h, &held_h, &n_h);
+            }
         }
         drow += dst->y_pitch;
-        srow += src->w *
-                ScaleStep(jb_step100 + row_v * JB_T100_STRIDE, hold_v, &held_v, &n_v);
+        srow += src->w * ScaleStep(tbl_v, hold_v, &held_v, &n_v);
     }
     return 1;
 }
@@ -188,6 +206,7 @@ int Blit_TileHV_Ofs(const jb_surface *dst, int x, int y, int w, int h,
 {
     uint16_t *drow;
     const uint16_t *srow;
+    const short *tbl_h, *tbl_v;
     int row_h, hold_h, row_v, hold_v, held_v, n_v, held0, sx, sy, cw, ch, i;
 
     row_h = ScaleRow(w, &hold_h);
@@ -215,6 +234,8 @@ int Blit_TileHV_Ofs(const jb_surface *dst, int x, int y, int w, int h,
         return 0;
     drow = dst->pixels + dst->x_pitch * x + dst->y_pitch * y;
     srow = src->pixels + src->w * sy + sx;
+    tbl_h = jb_step100 + row_h * JB_T100_STRIDE;
+    tbl_v = jb_step100 + row_v * JB_T100_STRIDE;
     held_v = hold_v;
     n_v = 0;
     for (; ch > 0; ch--) {
@@ -223,15 +244,22 @@ int Blit_TileHV_Ofs(const jb_surface *dst, int x, int y, int w, int h,
         int held_h = held0;
         int n_h = 0;
 
-        for (i = cw; i > 0; i--) {
-            if (key == JB_NO_KEY || *s != (uint16_t)key)
+        if (key == JB_NO_KEY) {
+            for (i = cw; i > 0; i--) {
                 *d = Color_Blend(dst, *s, *d, blend);
-            d += dst->x_pitch;
-            s += ScaleStep(jb_step100 + row_h * JB_T100_STRIDE, hold_h, &held_h, &n_h);
+                d += dst->x_pitch;
+                s += ScaleStep(tbl_h, hold_h, &held_h, &n_h);
+            }
+        } else {
+            for (i = cw; i > 0; i--) {
+                if (*s != (uint16_t)key)
+                    *d = Color_Blend(dst, *s, *d, blend);
+                d += dst->x_pitch;
+                s += ScaleStep(tbl_h, hold_h, &held_h, &n_h);
+            }
         }
         drow += dst->y_pitch;
-        srow += src->w *
-                ScaleStep(jb_step100 + row_v * JB_T100_STRIDE, hold_v, &held_v, &n_v);
+        srow += src->w * ScaleStep(tbl_v, hold_v, &held_v, &n_v);
     }
     return 1;
 }
@@ -242,6 +270,7 @@ int Blit_TileHV_Glyph(const jb_surface *dst, int x, int y, int w, int h,
 {
     uint16_t *drow;
     const uint16_t *srow;
+    const short *tbl_h, *tbl_v;
     int row_h, hold_h, row_v, hold_v, held_v, n_v, held0, sx, sy, cw, ch, i;
 
     row_h = ScaleRow(w, &hold_h);
@@ -269,6 +298,8 @@ int Blit_TileHV_Glyph(const jb_surface *dst, int x, int y, int w, int h,
         return 0;
     drow = dst->pixels + dst->x_pitch * x + dst->y_pitch * y;
     srow = src->pixels + src->w * sy + sx;
+    tbl_h = jb_step100 + row_h * JB_T100_STRIDE;
+    tbl_v = jb_step100 + row_v * JB_T100_STRIDE;
     held_v = hold_v;
     n_v = 0;
     for (; ch > 0; ch--) {
@@ -280,11 +311,10 @@ int Blit_TileHV_Glyph(const jb_surface *dst, int x, int y, int w, int h,
         for (i = cw; i > 0; i--) {
             *d = Color_MaskTint(dst, *s, *d, r, g, b);
             d += dst->x_pitch;
-            s += ScaleStep(jb_step100 + row_h * JB_T100_STRIDE, hold_h, &held_h, &n_h);
+            s += ScaleStep(tbl_h, hold_h, &held_h, &n_h);
         }
         drow += dst->y_pitch;
-        srow += src->w *
-                ScaleStep(jb_step100 + row_v * JB_T100_STRIDE, hold_v, &held_v, &n_v);
+        srow += src->w * ScaleStep(tbl_v, hold_v, &held_v, &n_v);
     }
     return 1;
 }
@@ -318,11 +348,19 @@ int Blit_TileH_Ofs(const jb_surface *dst, int x, int y, int w, int src_row,
         s += ScaleStep(tbl, hold, &held, &n);
     if (dst->bpp != 0x10)
         return 0;
-    for (i = w; i > 0; i--) {
-        if (key == JB_NO_KEY || *s != (uint16_t)key)
+    if (key == JB_NO_KEY) {
+        for (i = w; i > 0; i--) {
             *d = Color_Blend(dst, *s, *d, blend);
-        d += dst->x_pitch;
-        s += ScaleStep(tbl, hold, &held, &n);
+            d += dst->x_pitch;
+            s += ScaleStep(tbl, hold, &held, &n);
+        }
+    } else {
+        for (i = w; i > 0; i--) {
+            if (*s != (uint16_t)key)
+                *d = Color_Blend(dst, *s, *d, blend);
+            d += dst->x_pitch;
+            s += ScaleStep(tbl, hold, &held, &n);
+        }
     }
     return 1;
 }

@@ -17,11 +17,37 @@
 #define REG_DISPCNT  (*(volatile uint16_t *)0x04000000u)
 #define REG_VCOUNT   (*(volatile uint16_t *)0x04000006u)
 #define REG_KEYINPUT (*(volatile uint16_t *)0x04000130u)
-#define REG_TM2CNT_L (*(volatile uint16_t *)0x0400010Cu)
-#define REG_TM2CNT_H (*(volatile uint16_t *)0x0400010Eu)
-#define REG_TM3CNT_L (*(volatile uint16_t *)0x04000110u)
-#define REG_TM3CNT_H (*(volatile uint16_t *)0x04000112u)
+#define REG_TM2CNT_L (*(volatile uint16_t *)0x04000108u)
+#define REG_TM2CNT_H (*(volatile uint16_t *)0x0400010Au)
+#define REG_TM3CNT_L (*(volatile uint16_t *)0x0400010Cu)
+#define REG_TM3CNT_H (*(volatile uint16_t *)0x0400010Eu)
 #define GBA_VRAM     ((volatile uint16_t *)0x06000000u)
+
+/* GBATEK "GBA System Control": the undocumented Internal Memory Control word at
+   0x04000800.  Bits 24-27 are the 256 KB EWRAM wait control, encoded as
+   15 - waitstates; the reset value 0x0D leaves EWRAM at 2 wait states, and 0x0E
+   drops it to 1, roughly doubling EWRAM bandwidth (0x0F locks the bus up).  Bit
+   5 keeps the 256 KB EWRAM mapped.  Every heavy buffer - jb_backbuf here, the
+   Mod mixer state and the tile map in .sbss, and the PCM voices - lives in
+   EWRAM, so the 1-wait-state setting speeds up the whole frame. */
+#define REG_MEMCNT           (*(volatile uint32_t *)0x04000800u)
+#define GBA_MEMCNT_EWRAM_1WS 0x0E000020u
+
+/* GBATEK "GBA System Control": Waitstate Control at 0x04000204.  The Game Pak
+   sits in wait-state 0 (0x08000000), where both the code and the embedded
+   assets are read; 0x4317 sets WS0 to 3/1 cycles (reset is 4/2) and enables the
+   Game Pak prefetch buffer (bit 14), so sequential code and asset fetches from
+   ROM run faster. */
+#define REG_WAITCNT      (*(volatile uint16_t *)0x04000204u)
+#define GBA_WAITCNT_FAST 0x4317u
+
+/* GBATEK "GBA Memory Map": the 32 KB IWRAM at 0x03000000 is a 32-bit bus with
+   zero wait states, versus the Game Pak's waited 16-bit bus, so ARM code that
+   runs there fetches at one cycle per instruction.  ROM (0x08000000) is ~80 MB
+   from IWRAM, past the THUMB BL range, so a caller reaches it via long_call;
+   the devkitARM gba crt0 copies the .iwram section from ROM at startup. */
+#define JB_IWRAM_CODE \
+    __attribute__((section(".iwram"), long_call, target("arm")))
 
 #define GBA_SCREEN_W 240
 #define GBA_SCREEN_H 160
@@ -62,6 +88,9 @@ static uint16_t   jb_backbuf[JB_VIEW_W * (JB_VIEW_H + 1)]
 static jb_surface jb_back;
 static int        jb_w;
 static int        jb_h;
+static int        jb_present_w;
+static int        jb_present_h;
+static int        jb_present_scale;
 
 #define JB_RAWQ 32
 static int jb_rawq[JB_RAWQ];
@@ -76,6 +105,8 @@ static int jb_keymap[JB_KEY_COUNT] = {
 };
 static int      jb_keys[JB_KEY_COUNT];
 static unsigned jb_prev_keys;
+
+extern volatile unsigned jb_vblank_ticks;
 
 static void PushRawKey(int code)
 {
@@ -96,6 +127,9 @@ int Platform_Init(int w, int h, int scale, const char *title)
 
     jb_w = w;
     jb_h = h;
+    jb_present_w = w;
+    jb_present_h = h;
+    jb_present_scale = 2;
 
     jb_back.pixels  = jb_backbuf;
     jb_back.bpp     = 0x10;
@@ -105,6 +139,9 @@ int Platform_Init(int w, int h, int scale, const char *title)
     jb_clip_w     = w;
     jb_clip_h     = h;
     jb_clip_h_row = h;
+
+    REG_MEMCNT  = GBA_MEMCNT_EWRAM_1WS;
+    REG_WAITCNT = GBA_WAITCNT_FAST;
 
     /* Clear VRAM once; Platform_Present only ever writes the centred game
        region, so the letterbox side bars stay black afterwards. */
@@ -130,31 +167,63 @@ jb_surface *Platform_BackBuffer(void)
     return &jb_back;
 }
 
-void Platform_Present(void)
+void Platform_SetPresentView(int w, int h, int scale)
 {
-    int off_x = (GBA_SCREEN_W - jb_w / 2) / 2;
+    int i;
+
+    if (w == jb_present_w && h == jb_present_h && scale == jb_present_scale)
+        return;
+    jb_present_w = w;
+    jb_present_h = h;
+    jb_present_scale = scale;
+
+    for (i = 0; i < GBA_SCREEN_W * GBA_SCREEN_H; i++)
+        GBA_VRAM[i] = 0;
+}
+
+JB_IWRAM_CODE void Platform_Present(void)
+{
+    int s      = jb_present_scale;
+    int out_w  = jb_present_w / s;
+    int out_h  = jb_present_h / s;
+    int off_x  = (GBA_SCREEN_W - out_w) / 2;
+    int off_y  = (GBA_SCREEN_H - out_h) / 2;
     int dy;
 
-    /* GBATEK "DISPSTAT": scanlines 160..227 are the vertical blank.  Copy while
-       the beam is there so the visible frame is not torn mid-scan. */
-    while (REG_VCOUNT >= GBA_SCREEN_H) {}
-    while (REG_VCOUNT < GBA_SCREEN_H) {}
+    /* GBATEK "DISPSTAT": scanlines 160..227 are the vertical blank.  The audio
+       backend's VBlank ISR can span that whole window, so a main-thread
+       while (REG_VCOUNT < 160) poll may never see VCOUNT in vblank and spins
+       forever; wait on the ISR's frame counter instead. */
+    {
+        unsigned t = jb_vblank_ticks;
 
-    for (dy = 0; dy < GBA_SCREEN_H; dy++) {
-        const uint16_t    *src = jb_backbuf + (dy * 2) * jb_w;
-        volatile uint16_t *dst = GBA_VRAM + dy * GBA_SCREEN_W + off_x;
+        while (jb_vblank_ticks == t) {}
+    }
+
+    for (dy = 0; dy < out_h; dy++) {
+        const uint16_t    *src = jb_backbuf + (dy * s) * jb_w;
+        volatile uint32_t *dst =
+            (volatile uint32_t *)(GBA_VRAM + (dy + off_y) * GBA_SCREEN_W + off_x);
         int                dx;
 
-        for (dx = 0; dx < jb_w / 2; dx++) {
-            unsigned p = src[dx * 2];
-            unsigned r = (p >> 11) & 0x1Fu;
-            unsigned g = (p >> 6) & 0x1Fu;
-            unsigned b = p & 0x1Fu;
+        /* GBATEK "LCD Color Definitions": the framebuffer is BGR555 (red in
+           bits 0-4, blue in bits 10-14) and the game buffer is RGB565, so a
+           pixel maps red 11..15 -> 0..4, the top five green bits 6..10 -> 5..9
+           (the 6-bit green drops its low bit), blue 0..4 -> 10..14.  GBATEK
+           "GBA Memory Map": VRAM takes 16- or 32-bit accesses, so two adjacent
+           BGR555 pixels pack into one 32-bit store (low halfword first on the
+           little-endian ARM7TDMI), halving the write count. */
+        for (dx = 0; dx < out_w / 2; dx++) {
+            unsigned p0 = src[dx * 2 * s];
+            unsigned p1 = src[dx * 2 * s + s];
+            unsigned c0 = ((p0 >> 11) & 0x001Fu) |
+                          ((p0 >> 1) & 0x03E0u) |
+                          ((p0 << 10) & 0x7C00u);
+            unsigned c1 = ((p1 >> 11) & 0x001Fu) |
+                          ((p1 >> 1) & 0x03E0u) |
+                          ((p1 << 10) & 0x7C00u);
 
-            /* GBATEK "LCD Color Definitions": the framebuffer is BGR555, red in
-               bits 0-4 and blue in bits 10-14; the game buffer is RGB565, so
-               the 6-bit green drops its low bit. */
-            dst[dx] = (uint16_t)((b << 10) | (g << 5) | r);
+            dst[dx] = c0 | (c1 << 16);
         }
     }
 }

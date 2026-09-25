@@ -34,7 +34,8 @@ cd "$(dirname "$0")/.."
 # in sync-none.specs, and passing it twice in one gcc invocation makes that
 # nested spec redefine 'link' and abort with "already defined spec".
 CFLAGS="-mthumb -mthumb-interwork -O2 -Wall -Wextra -std=gnu89 \
--DJB_BACKEND_GBA -DJB_EMBED -DJB_TABLES_ROM -fno-strict-aliasing"
+-DJB_BACKEND_GBA -DJB_EMBED -DJB_TABLES_ROM -DJB_ASSETS_ROM -DJB_MENU_HALF \
+-fno-strict-aliasing"
 LDFLAGS="-specs=gba.specs"
 
 SRC="jb_appassets.c jb_assets.c jb_audio.c jb_ball.c jb_bmp.c jb_gfx.c \
@@ -42,10 +43,12 @@ jb_gfx_tile.c jb_keyconfig.c jb_level.c jb_main.c jb_menu.c jb_mod.c \
 jb_mod_effects.c jb_player.c jb_stage.c jb_text.c jb_track.c \
 jb_trackrow_forest.c jb_trackrow_grass.c jb_trackrow_ice_alt.c \
 jb_trackrow_sky.c jb_trackrow_tiled.c jb_platform_gba.c jb_audio_gba.c \
-jb_embed.c jb_embed_data.c jb_tables_rom.c"
+jb_embed.c jb_embed_data.c jb_tables_rom.c jb_assets_rom.c jb_assets_rom_data.c"
 
 "$PYTHON" tools/gen_embed.py --root . --out jb_embed_data.c
 "$PYTHON" tools/gen_tables.py --out jb_tables_rom.c
+"$PYTHON" tools/gen_assets_rom.py --root . --out jb_assets_rom_data.c \
+    --half 247,248,249,250,251,253,254,308,204
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -53,6 +56,20 @@ mkdir -p "$OUT"
 # shellcheck disable=SC2086
 "$CC" $CFLAGS -o "$OUT/jumpyball.elf" $SRC $LDFLAGS
 "$OBJCOPY" -O binary "$OUT/jumpyball.elf" "$OUT/jumpyball.gba"
+
+# Static footprint report.  The GBA has 256 KB EWRAM (VMA 0x0200_xxxx) plus
+# 32 KB IWRAM (VMA 0x0300_xxxx); an over-budget .bss/.data does not fail the
+# link, it silently corrupts at runtime, so the section VMAs and the largest
+# symbols are printed here to show which region each lands in.
+SIZE=${SIZE:-$DEVKITARM/bin/arm-none-eabi-size}
+OBJDUMP=${OBJDUMP:-$DEVKITARM/bin/arm-none-eabi-objdump}
+NM=${NM:-$DEVKITARM/bin/arm-none-eabi-nm}
+echo "=== jumpyball.elf section sizes ==="
+"$SIZE" -A -x "$OUT/jumpyball.elf"
+echo "=== jumpyball.elf section headers (VMA -> region) ==="
+"$OBJDUMP" -h "$OUT/jumpyball.elf"
+echo "=== jumpyball.elf largest symbols ==="
+"$NM" --print-size --size-sort --radix=x "$OUT/jumpyball.elf" | tail -30
 
 # gbafix writes the Nintendo logo and header checksum a real cartridge needs;
 # emulators run the raw binary without it, so a missing gbafix is a warning.

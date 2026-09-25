@@ -2,6 +2,10 @@
 
 #include "jb_platform.h"
 
+#ifdef JB_ASSETS_ROM
+#include "jb_assets_rom.h"
+#endif
+
 #include <stdlib.h>
 
 static unsigned Rd16(const unsigned char *p)
@@ -38,6 +42,20 @@ int Bmp_LoadSprite(const jb_surface *dst, const char *path, jb_sprite *out)
     unsigned off, hdr, bpp, comp, stride, pal_bytes;
     int w, h, x, y, top_down;
     uint16_t *px;
+
+#ifdef JB_ASSETS_ROM
+    {
+        int rw, rh;
+        const uint16_t *rom = AssetRom_Find(path, &rw, &rh);
+
+        if (rom) {
+            out->pixels = (uint16_t *)rom;
+            out->w = rw;
+            out->h = rh;
+            return 1;
+        }
+    }
+#endif
 
     f = Platform_ReadFile(path, &len);
     if (!f)
@@ -98,8 +116,26 @@ int Bmp_LoadSprite(const jb_surface *dst, const char *path, jb_sprite *out)
 
 void Bmp_FreeSprite(jb_sprite *spr)
 {
+#ifndef JB_ASSETS_ROM
     free(spr->pixels);
+#endif
     spr->pixels = NULL;
     spr->w = 0;
     spr->h = 0;
 }
+
+#ifdef JB_MENU_HALF
+int Bmp_LoadSpriteHalf(const jb_surface *dst, const char *path, jb_sprite *out)
+{
+    int             rw, rh;
+    const uint16_t *rom = AssetRom_FindHalf(path, &rw, &rh);
+
+    if (rom) {
+        out->pixels = (uint16_t *)rom;
+        out->w      = rw;
+        out->h      = rh;
+        return 1;
+    }
+    return Bmp_LoadSprite(dst, path, out);
+}
+#endif

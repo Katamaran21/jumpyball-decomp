@@ -108,15 +108,15 @@ void Track_DrawFrame(const jb_track_state *st, jb_track_row_fn draw, void *user)
 
         row.row = JB_VISIBLE_ROWS - i;
 
-        y_near = (float)JB_VIEW_H - Proj((float)row.row - cam);
-        y_far  = (float)JB_VIEW_H - Proj((float)(row.row + 1) - cam);
+        y_near = (float)st->view_bottom - Proj((float)row.row - cam);
+        y_far  = (float)st->view_bottom - Proj((float)(row.row + 1) - cam);
         /* JumpyBall.exe Track_DrawFrame 0x0001e1c4: on the first iteration the far
            edge is recomputed from __itos(iVar17 + 1) with no camera offset. */
         if (i == 0)
-            y_far = (float)JB_VIEW_H - Proj((float)(row.row + 1));
+            y_far = (float)st->view_bottom - Proj((float)(row.row + 1));
 
-        proj_near = (float)JB_VIEW_H - y_near;
-        proj_far  = (float)JB_VIEW_H - y_far;
+        proj_near = (float)st->view_bottom - y_near;
+        proj_far  = (float)st->view_bottom - y_far;
 
         shift_far  = st->row_shift[row.row + 1];
         shift_near = st->row_shift[row.row];

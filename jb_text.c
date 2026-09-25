@@ -8,7 +8,11 @@
 #define JB_GLYPH_FIRST   33
 #define JB_SMALL_STRIP_W 0x4ba
 #define JB_SPACE_X       0x4bc
+#ifdef JB_MENU_HALF
+#define JB_SPACE_W       3
+#else
 #define JB_SPACE_W       5
+#endif
 
 static int              jb_glyph_w[JB_GLYPH_N];
 static int              jb_glyph_x[JB_GLYPH_N];
@@ -94,8 +98,13 @@ void Font_Select(const jb_surface *dst, int size)
 
 int Font_Load(const jb_surface *dst)
 {
+#ifdef JB_MENU_HALF
+    if (!Bmp_LoadSpriteHalf(dst, Assets_Bitmap(JB_RES_FONT), &jb_sheet_small))
+        return 0;
+#else
     if (!Bmp_LoadSprite(dst, Assets_Bitmap(JB_RES_FONT), &jb_sheet_small))
         return 0;
+#endif
     if (!Bmp_LoadSprite(dst, Assets_Bitmap(JB_RES_FONT_LARGE), &jb_sheet_large))
         return 0;
 
@@ -117,6 +126,10 @@ void Font_Free(void)
    ((g_fontSize == 2) + 2) * 7 and source row 0. */
 static int GlyphHeight(void)
 {
+#ifdef JB_MENU_HALF
+    if (jb_font_size != 2)
+        return 7;
+#endif
     return ((jb_font_size == 2) + 2) * 7;
 }
 

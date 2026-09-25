@@ -27,6 +27,43 @@
 
 #define JB_MSG_MAX 2048
 
+/* JumpyBall.exe Game_Init 0x000113bc drives the perspective scroller from
+   g_viewBottom upward (Track_DrawFrame) and pins the ball JB_BALL_Y_BIAS above
+   it (jb_ball.c BaseY), both independent of g_viewH, so the native 240x320
+   layout with g_viewBottom cropped to the 160-line GBA panel is an exact
+   viewport crop - full 240 width, native tile_size, present 1:1 (no /2
+   overdraw), only the far distance clipped off the top. */
+#ifdef JB_BACKEND_GBA
+#define JB_GAME_VIEW_W        JB_VIEW_W
+#define JB_GAME_VIEW_H        160
+#define JB_GAME_VIEW_CENTER_X JB_VIEW_CENTER_X
+#define JB_GAME_TILE_SIZE     JB_TILE_SIZE
+#define JB_GAME_LAYOUT_MODE   JB_LAYOUT_240x320
+#define JB_GAME_PRESENT_SCALE 1
+#else
+#define JB_GAME_VIEW_W        JB_VIEW_W
+#define JB_GAME_VIEW_H        JB_VIEW_H
+#define JB_GAME_VIEW_CENTER_X JB_VIEW_CENTER_X
+#define JB_GAME_TILE_SIZE     JB_TILE_SIZE
+#define JB_GAME_LAYOUT_MODE   JB_LAYOUT_240x320
+#define JB_GAME_PRESENT_SCALE 2
+#endif
+
+/* The GBA JB_MENU_HALF build composites the menu at 120x160 - the 240x320
+   menu view scaled by exactly 1/2 - so Platform_Present ships it 1:1 with no
+   downsample; every other build keeps the 240x320 view and the /2 present. */
+#ifdef JB_MENU_HALF
+#define JB_MENU_VIEW_W        120
+#define JB_MENU_VIEW_H        160
+#define JB_MENU_VIEW_CENTER_X 60
+#define JB_MENU_PRESENT_SCALE 1
+#else
+#define JB_MENU_VIEW_W        JB_VIEW_W
+#define JB_MENU_VIEW_H        JB_VIEW_H
+#define JB_MENU_VIEW_CENTER_X JB_VIEW_CENTER_X
+#define JB_MENU_PRESENT_SCALE 2
+#endif
+
 /* JumpyBall.exe Player_Respawn 0x00012f18 stores 0x32 zero words at g_rowShift
    0x00061930, and Level_Begin 0x0001376c refills it from g_rowShiftSrc
    0x0002f6d8, whose generator writes 0 to every entry while g_altTrackMode
@@ -251,7 +288,7 @@ static void Frame(void)
         /* JumpyBall.exe Level_Begin 0x0001376c fills g_backdrop 0x00061b28
            with Blit_NoKey 0x00023a3c of g_viewW x g_viewH from the theme
            bitmap LoadBitmapW picked for g_theme 0x00064944. */
-        Blit_NoKey(jb_back, 0, 0, JB_VIEW_W, JB_VIEW_H,
+        Blit_NoKey(jb_back, 0, 0, JB_GAME_VIEW_W, JB_GAME_VIEW_H,
                    (jb_stg.backdrop_res == JB_RES_BACKDROP_DESERT)
                        ? &jb_a.backdrop_desert : &jb_a.backdrop_ice, 0, 0);
 
@@ -265,6 +302,15 @@ static void Frame(void)
             Timer_DrawHud(jb_back, jb_pl.cam_row, jb_ball_st.hud_r,
                           jb_ball_st.hud_g, jb_ball_st.hud_b);
     }
+
+#ifdef JB_BACKEND_GBA
+    if (jb_kc.active || jb_mode == JB_MODE_MENU)
+        Platform_SetPresentView(JB_MENU_VIEW_W, JB_MENU_VIEW_H,
+                                JB_MENU_PRESENT_SCALE);
+    else
+        Platform_SetPresentView(JB_GAME_VIEW_W, JB_GAME_VIEW_H,
+                                JB_GAME_PRESENT_SCALE);
+#endif
 
     Platform_Present();
 
@@ -289,6 +335,7 @@ int main(int argc, char **argv)
     int         start_screen = JB_SCREEN_MAIN;
     int         start_index = 0;
     int         i;
+
 
     for (i = 1; i < argc; i++) {
         if (!strncmp(argv[i], "--level=", 8))
@@ -318,6 +365,7 @@ int main(int argc, char **argv)
     }
     back = Platform_BackBuffer();
 
+
     if (!Assets_Init()) {
         char msg[JB_MSG_MAX];
         /* Windows CE has no process environment, so pointing the player at
@@ -343,17 +391,20 @@ int main(int argc, char **argv)
        before the first Screen_Set 0x00013678. */
     Audio_Init();
 
+
     /* JumpyBall.exe Game_Init 0x000113bc builds g_rowProjOfs 0x00061438 and
        g_texVStep 0x00035238 before the first Track_DrawFrame 0x0001dd54. */
     Gfx_BuildScaleTables();
     Track_BuildProjTables();
     Gfx_BuildTexVStep();
 
+
     if (!AppAssets_Load(back)) {
         AppAssets_Free();
         Platform_Shutdown();
         return 1;
     }
+
 
     /* JumpyBall.exe Game_Init 0x000113bc calls Font_Load 0x0001f4d8 before the
        first Screen_Set 0x00013678. */
@@ -369,6 +420,7 @@ int main(int argc, char **argv)
         Platform_Shutdown();
         return 1;
     }
+
 
     jb_ctx.screen      = back;
     jb_ctx.tex_water_h = &jb_a.tex_water_h;
@@ -386,16 +438,17 @@ int main(int argc, char **argv)
        Color_Pack16If16bpp(g_screen 0x00061b10, 0x800080), and
        TrackRow_DrawGrass 0x00019198 passes it as the blit colour key. */
     jb_ctx.sign_key    = Color_Pack16If16bpp(back, 0x00800080u);
-    jb_ctx.view_w      = JB_VIEW_W;
-    jb_ctx.view_bottom = JB_VIEW_BOTTOM;
-    jb_ctx.layout_mode = JB_LAYOUT_240x320;
+    jb_ctx.view_w      = JB_GAME_VIEW_W;
+    jb_ctx.view_bottom = JB_GAME_VIEW_H;
+    jb_ctx.layout_mode = JB_GAME_LAYOUT_MODE;
     jb_ctx.map_cols    = JB_MAP_COLS;
 
     jb_st.row_shift     = jb_row_shift;
     jb_st.tile_grid     = jb_tile_grid;
     jb_st.map_cols      = JB_MAP_COLS;
-    jb_st.view_center_x = JB_VIEW_CENTER_X;
-    jb_st.tile_size     = JB_TILE_SIZE;
+    jb_st.view_center_x = JB_GAME_VIEW_CENTER_X;
+    jb_st.tile_size     = JB_GAME_TILE_SIZE;
+    jb_st.view_bottom   = JB_GAME_VIEW_H;
     jb_st.ball_prev_x   = 0.0f;
 
     /* JumpyBall.exe .data g_autoJump 0x00026430 1, g_mapCols 0x0002628c 0x10,
@@ -418,9 +471,9 @@ int main(int argc, char **argv)
     jb_ball_st.hud_r           = 0;
     jb_ball_st.hud_g           = 0;
     jb_ball_st.hud_b           = 0;
-    jb_ball_st.layout_mode     = JB_LAYOUT_240x320;
-    jb_ball_st.view_bottom     = JB_VIEW_BOTTOM;
-    jb_ball_st.view_center_x   = JB_VIEW_CENTER_X;
+    jb_ball_st.layout_mode     = JB_GAME_LAYOUT_MODE;
+    jb_ball_st.view_bottom     = JB_GAME_VIEW_H;
+    jb_ball_st.view_center_x   = JB_GAME_VIEW_CENTER_X;
 
     jb_m.screen        = back;
     jb_m.backdrop      = &jb_a.backdrop_menu;
@@ -431,9 +484,9 @@ int main(int argc, char **argv)
     jb_m.button_wide   = &jb_a.button_wide;
     jb_m.logo_small    = &jb_a.logo_small;
     jb_m.key           = jb_ctx.sign_key;
-    jb_m.view_w        = JB_VIEW_W;
-    jb_m.view_h        = JB_VIEW_H;
-    jb_m.view_center_x = JB_VIEW_CENTER_X;
+    jb_m.view_w        = JB_MENU_VIEW_W;
+    jb_m.view_h        = JB_MENU_VIEW_H;
+    jb_m.view_center_x = JB_MENU_VIEW_CENTER_X;
     jb_m.layout_mode   = JB_LAYOUT_240x320;
     jb_m.max_unlocked  = jb_stg.max_unlocked;
     jb_m.auto_jump     = jb_pl.auto_jump;
@@ -441,9 +494,9 @@ int main(int argc, char **argv)
     jb_kc.screen        = back;
     jb_kc.panel         = &jb_a.keyconfig_panel;
     jb_kc.key           = jb_ctx.sign_key;
-    jb_kc.view_w        = JB_VIEW_W;
-    jb_kc.view_h        = JB_VIEW_H;
-    jb_kc.view_center_x = JB_VIEW_CENTER_X;
+    jb_kc.view_w        = JB_MENU_VIEW_W;
+    jb_kc.view_h        = JB_MENU_VIEW_H;
+    jb_kc.view_center_x = JB_MENU_VIEW_CENTER_X;
     jb_kc.active        = 0;
     jb_kc.step          = 0;
     KeyConfig_Load();

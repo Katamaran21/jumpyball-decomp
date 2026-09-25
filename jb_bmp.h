@@ -8,6 +8,12 @@
    result is w*h packed RGB565 pixels, stride w, top row first. */
 int Bmp_LoadSprite(const jb_surface *dst, const char *path, jb_sprite *out);
 
+#ifdef JB_MENU_HALF
+/* Points the sprite at the half-size ROM variant (gen_assets_rom.py --half) when
+   one exists for the path, else defers to Bmp_LoadSprite for the full sprite. */
+int Bmp_LoadSpriteHalf(const jb_surface *dst, const char *path, jb_sprite *out);
+#endif
+
 void Bmp_FreeSprite(jb_sprite *spr);
 
 #endif /* JB_BMP_H */

@@ -1,6 +1,15 @@
 #include "jb_level.h"
 
+#include <string.h>
+
+#ifdef JB_BACKEND_GBA
+/* IWRAM (32 KB) has no room for the 16 KB grid alongside .bss/.data/stack;
+   put it in EWRAM. Level_LoadTileMap zeroes it, so .sbss clear is not relied on. */
+unsigned char jb_tile_grid[JB_GRID_ALLOC_ROWS * JB_MAP_COLS]
+    __attribute__((section(".sbss")));
+#else
 unsigned char jb_tile_grid[JB_GRID_ALLOC_ROWS * JB_MAP_COLS];
+#endif
 int           jb_checkpoint_x[JB_CHECKPOINT_N];
 int           jb_checkpoint_y[JB_CHECKPOINT_N];
 int           jb_checkpoint_n;
@@ -29,6 +38,8 @@ void Level_LoadTileMap(const jb_surface *screen, int level,
        source pointer uninitialised when none of the three tests matches. */
     if (src == 0)
         return;
+
+    memset(jb_tile_grid, 0, sizeof jb_tile_grid);
 
     for (row = 0; row < JB_GRID_ROWS; row++) {
         const uint16_t *p = src;

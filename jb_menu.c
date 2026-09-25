@@ -7,6 +7,18 @@
 
 #define JB_MENU_ITEMS 4
 
+/* GBA JB_MENU_HALF composites the menu natively at 120x160 - half the 240x320
+   canvas - to drop the 4x present-time overdraw. Every literal coordinate,
+   dimension and source offset below is in 240x320 space and is scaled by
+   JB_MC; view_w/view_h/view_center_x already arrive halved from jb_main.c and
+   stay raw. Blit_Core clamps w/h to the (halved) source, so sprite extents
+   self-correct. Other backends see the identity macro. */
+#ifdef JB_MENU_HALF
+#define JB_MC(v) ((v) / 2)
+#else
+#define JB_MC(v) (v)
+#endif
+
 /* JumpyBall.exe Menu_DrawFrame 0x0001a7d0 draws g_screen 0 from 0x00026920
    'Play', 0x00026914 'Settings', 0x0002690c 'About', 0x00026904 'Exit'. */
 static const char *const jb_items_main[JB_MENU_ITEMS] = {
@@ -91,7 +103,7 @@ static const int jb_item_y[JB_MENU_ITEMS] = { 87, 128, 169, 210 };
    ((g_layoutMode == 0x14) * -10 + 0x29) * i + 0x4b. */
 static int ButtonY(const jb_menu *m, int i)
 {
-    return ((m->layout_mode == JB_LAYOUT_176x220) * -10 + 0x29) * i + 0x4b;
+    return JB_MC(((m->layout_mode == JB_LAYOUT_176x220) * -10 + 0x29) * i + 0x4b);
 }
 
 /* JumpyBall.exe Menu_DrawFrame 0x0001a7d0: g_backdropMenu 0x00061b48,
@@ -104,18 +116,19 @@ static void DrawChrome(const jb_menu *m)
 
     Blit_NoKey(m->screen, 0, 0, m->view_w, m->view_h, m->backdrop, 0, 0);
 
-    for (y = 0; y < 0x140; y += 10)
-        Blit(m->screen, 0, y, m->view_w, 10, m->bar_thin, JB_NO_KEY, 0, 0);
+    for (y = 0; y < JB_MC(0x140); y += JB_MC(10))
+        Blit(m->screen, 0, y, m->view_w, JB_MC(10), m->bar_thin, JB_NO_KEY, 0, 0);
 
     if (m->layout_mode == JB_LAYOUT_176x220)
-        Blit(m->screen, 0, 0, m->view_w, 0x3c, m->title, JB_NO_KEY, 0x32, 0x14);
+        Blit(m->screen, 0, 0, m->view_w, JB_MC(0x3c), m->title, JB_NO_KEY,
+             JB_MC(0x32), JB_MC(0x14));
     else
-        Blit(m->screen, 0, 0, m->view_w, 0x4d, m->title, JB_NO_KEY, 0, 0);
+        Blit(m->screen, 0, 0, m->view_w, JB_MC(0x4d), m->title, JB_NO_KEY, 0, 0);
 
-    Blit(m->screen, 0, m->view_h - 0x30, m->view_w, 0x30, m->panel, JB_NO_KEY,
-         0, 0);
-    Blit_Glyph(m->screen, m->view_center_x - 0x57, 0x11e, 0xaf, 0x17,
-               m->logo_small, 0xff, 0xff, 0xff, 0, 0);
+    Blit(m->screen, 0, m->view_h - JB_MC(0x30), m->view_w, JB_MC(0x30), m->panel,
+         JB_NO_KEY, 0, 0);
+    Blit_Glyph(m->screen, m->view_center_x - JB_MC(0x57), JB_MC(0x11e), JB_MC(0xaf),
+               JB_MC(0x17), m->logo_small, 0xff, 0xff, 0xff, 0, 0);
 }
 
 /* JumpyBall.exe Menu_DrawFrame 0x0001a7d0 blits g_sprButtonNarrow for every
@@ -130,11 +143,11 @@ static void DrawButtons(const jb_menu *m)
         return;
 
     for (i = 0; i < JB_MENU_ITEMS; i++)
-        Blit(m->screen, 0, ButtonY(m, i), 0xa0 - (m->layout_mode >> 1), 32,
-             m->button_narrow, m->key, 0, 0);
+        Blit(m->screen, 0, ButtonY(m, i), JB_MC(0xa0 - (m->layout_mode >> 1)),
+             JB_MC(32), m->button_narrow, m->key, 0, 0);
 
-    Blit(m->screen, 0, ButtonY(m, m->index), 200 - m->layout_mode, 32,
-         m->button_wide, m->key, 10, 0);
+    Blit(m->screen, 0, ButtonY(m, m->index), JB_MC(200 - m->layout_mode),
+         JB_MC(32), m->button_wide, m->key, JB_MC(10), 0);
 }
 
 /* JumpyBall.exe Menu_DrawFrame 0x0001a7d0 item text x
@@ -142,18 +155,18 @@ static void DrawButtons(const jb_menu *m)
 static void DrawItem(const jb_menu *m, int i, const char *s, int r, int g,
                      int b)
 {
-    Text_DrawCentered(m->screen, (m->index == i) * 0x10 + 0x23, jb_item_y[i], s,
-                      0, r, g, b);
+    Text_DrawCentered(m->screen, JB_MC((m->index == i) * 0x10 + 0x23),
+                      JB_MC(jb_item_y[i]), s, 0, r, g, b);
 }
 
 /* JumpyBall.exe Menu_DrawFrame 0x0001a7d0 subtitle pair, both align 1 and
    colour 0,0,0, centred on g_viewCenterX. */
 static void DrawSub(const jb_menu *m, const char *const pair[2], int dx1)
 {
-    Text_DrawCentered(m->screen, m->view_center_x, JB_SUB_Y0, pair[0], 1, 0, 0,
-                      0);
-    Text_DrawCentered(m->screen, m->view_center_x + dx1, JB_SUB_Y1, pair[1], 1,
+    Text_DrawCentered(m->screen, m->view_center_x, JB_MC(JB_SUB_Y0), pair[0], 1,
                       0, 0, 0);
+    Text_DrawCentered(m->screen, m->view_center_x + JB_MC(dx1), JB_MC(JB_SUB_Y1),
+                      pair[1], 1, 0, 0, 0);
 }
 
 static void DrawMain(const jb_menu *m)
@@ -205,8 +218,8 @@ static void DrawSettings(const jb_menu *m)
         DrawItem(m, i, s, 0xff, 0xff, 0xff);
     }
 
-    Blit(m->screen, (m->index == 0) * 0x10 + 0x5a, 91, vol * 2, 5, m->bar_thin,
-         m->key, (0x20 - vol) * 2, 0);
+    Blit(m->screen, JB_MC((m->index == 0) * 0x10 + 0x5a), JB_MC(91), JB_MC(vol * 2),
+         JB_MC(5), m->bar_thin, m->key, JB_MC((0x20 - vol) * 2), 0);
 
     if (m->index == 3)
         DrawSub(m, jb_sub_back, -1);
@@ -219,9 +232,9 @@ static void DrawAbout(const jb_menu *m)
     int i;
 
     for (i = 0; i < JB_ABOUT_N; i++)
-        Text_DrawCentered(m->screen, m->view_center_x + jb_about[i].dx,
-                          jb_about[i].y, jb_about[i].text, jb_about[i].align, 0,
-                          0, 0);
+        Text_DrawCentered(m->screen, m->view_center_x + JB_MC(jb_about[i].dx),
+                          JB_MC(jb_about[i].y), jb_about[i].text,
+                          jb_about[i].align, 0, 0, 0);
 }
 
 void Menu_DrawFrame(const jb_menu *m)

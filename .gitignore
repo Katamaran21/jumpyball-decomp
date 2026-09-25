@@ -12,4 +12,5 @@ dist/
 keys.cfg
 jb_embed_data.c
 jb_tables_rom.c
+jb_assets_rom_data.c
 __pycache__/
