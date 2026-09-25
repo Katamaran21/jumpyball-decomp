@@ -41,6 +41,14 @@
 #define REG_WAITCNT      (*(volatile uint16_t *)0x04000204u)
 #define GBA_WAITCNT_FAST 0x4317u
 
+/* GBATEK "GBA Memory Map": the 32 KB IWRAM at 0x03000000 is a 32-bit bus with
+   zero wait states, versus the Game Pak's waited 16-bit bus, so ARM code that
+   runs there fetches at one cycle per instruction.  ROM (0x08000000) is ~80 MB
+   from IWRAM, past the THUMB BL range, so a caller reaches it via long_call;
+   the devkitARM gba crt0 copies the .iwram section from ROM at startup. */
+#define JB_IWRAM_CODE \
+    __attribute__((section(".iwram"), long_call, target("arm")))
+
 #define GBA_SCREEN_W 240
 #define GBA_SCREEN_H 160
 
@@ -153,7 +161,7 @@ jb_surface *Platform_BackBuffer(void)
     return &jb_back;
 }
 
-void Platform_Present(void)
+JB_IWRAM_CODE void Platform_Present(void)
 {
     int off_x = (GBA_SCREEN_W - jb_w / 2) / 2;
     int dy;
