@@ -151,7 +151,9 @@ void Platform_Present(void)
     /* GBATEK "DISPSTAT": scanlines 160..227 are the vertical blank.  Copy while
        the beam is there so the visible frame is not torn mid-scan. */
     while (REG_VCOUNT >= GBA_SCREEN_H) {}
+    JbDbgMark(4, 0x7FE0u);
     while (REG_VCOUNT < GBA_SCREEN_H) {}
+    JbDbgMark(5, 0x7FFFu);
 
     for (dy = 0; dy < GBA_SCREEN_H; dy++) {
         const uint16_t    *src = jb_backbuf + (dy * 2) * jb_w;
