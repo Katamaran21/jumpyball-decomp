@@ -145,16 +145,16 @@ void Platform_Present(void)
         volatile uint16_t *dst = GBA_VRAM + dy * GBA_SCREEN_W + off_x;
         int                dx;
 
+        /* GBATEK "LCD Color Definitions": the framebuffer is BGR555 (red in
+           bits 0-4, blue in bits 10-14) and the game buffer is RGB565, so a
+           pixel maps red 11..15 -> 0..4, the top five green bits 6..10 -> 5..9
+           (the 6-bit green drops its low bit), blue 0..4 -> 10..14. */
         for (dx = 0; dx < jb_w / 2; dx++) {
             unsigned p = src[dx * 2];
-            unsigned r = (p >> 11) & 0x1Fu;
-            unsigned g = (p >> 6) & 0x1Fu;
-            unsigned b = p & 0x1Fu;
 
-            /* GBATEK "LCD Color Definitions": the framebuffer is BGR555, red in
-               bits 0-4 and blue in bits 10-14; the game buffer is RGB565, so
-               the 6-bit green drops its low bit. */
-            dst[dx] = (uint16_t)((b << 10) | (g << 5) | r);
+            dst[dx] = (uint16_t)(((p >> 11) & 0x001Fu) |
+                                 ((p >> 1) & 0x03E0u) |
+                                 ((p << 10) & 0x7C00u));
         }
     }
 }
