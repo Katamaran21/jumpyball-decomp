@@ -23,6 +23,16 @@
 #define REG_TM3CNT_H (*(volatile uint16_t *)0x0400010Eu)
 #define GBA_VRAM     ((volatile uint16_t *)0x06000000u)
 
+/* GBATEK "GBA System Control": the undocumented Internal Memory Control word at
+   0x04000800.  Bits 24-27 are the 256 KB EWRAM wait control, encoded as
+   15 - waitstates; the reset value 0x0D leaves EWRAM at 2 wait states, and 0x0E
+   drops it to 1, roughly doubling EWRAM bandwidth (0x0F locks the bus up).  Bit
+   5 keeps the 256 KB EWRAM mapped.  Every heavy buffer - jb_backbuf here, the
+   Mod mixer state and the tile map in .sbss, and the PCM voices - lives in
+   EWRAM, so the 1-wait-state setting speeds up the whole frame. */
+#define REG_MEMCNT           (*(volatile uint32_t *)0x04000800u)
+#define GBA_MEMCNT_EWRAM_1WS 0x0E000020u
+
 #define GBA_SCREEN_W 240
 #define GBA_SCREEN_H 160
 
@@ -107,6 +117,8 @@ int Platform_Init(int w, int h, int scale, const char *title)
     jb_clip_w     = w;
     jb_clip_h     = h;
     jb_clip_h_row = h;
+
+    REG_MEMCNT = GBA_MEMCNT_EWRAM_1WS;
 
     /* Clear VRAM once; Platform_Present only ever writes the centred game
        region, so the letterbox side bars stay black afterwards. */
