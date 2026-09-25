@@ -137,7 +137,11 @@ static void StartDma(const int8_t *buf)
     REG_DMA1CNT_H = JB_DMA1_FIFO;
 }
 
-static void JbAudioISR(void)
+/* GBATEK "Interrupt Handling": the BIOS enters the user IRQ handler at
+   [0x03007FFC] with LDR PC, which on the ARM7TDMI (ARMv4T) does not switch to
+   THUMB, so the handler must be ARM code with an even entry address; force ARM
+   in this -mthumb translation unit. */
+static void __attribute__((target("arm"))) JbAudioISR(void)
 {
     unsigned short flags = REG_IF;
 
