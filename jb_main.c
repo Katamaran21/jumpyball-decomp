@@ -27,13 +27,6 @@
 
 #define JB_MSG_MAX 2048
 
-#ifdef JB_BACKEND_GBA
-void Platform_DebugMarker(int idx);
-#define JB_DBG(n) Platform_DebugMarker(n)
-#else
-#define JB_DBG(n) ((void)0)
-#endif
-
 /* JumpyBall.exe Player_Respawn 0x00012f18 stores 0x32 zero words at g_rowShift
    0x00061930, and Level_Begin 0x0001376c refills it from g_rowShiftSrc
    0x0002f6d8, whose generator writes 0 to every entry while g_altTrackMode
@@ -297,7 +290,6 @@ int main(int argc, char **argv)
     int         start_index = 0;
     int         i;
 
-    JB_DBG(0);
 
     for (i = 1; i < argc; i++) {
         if (!strncmp(argv[i], "--level=", 8))
@@ -327,7 +319,6 @@ int main(int argc, char **argv)
     }
     back = Platform_BackBuffer();
 
-    JB_DBG(1);
 
     if (!Assets_Init()) {
         char msg[JB_MSG_MAX];
@@ -354,7 +345,6 @@ int main(int argc, char **argv)
        before the first Screen_Set 0x00013678. */
     Audio_Init();
 
-    JB_DBG(2);
 
     /* JumpyBall.exe Game_Init 0x000113bc builds g_rowProjOfs 0x00061438 and
        g_texVStep 0x00035238 before the first Track_DrawFrame 0x0001dd54. */
@@ -362,7 +352,6 @@ int main(int argc, char **argv)
     Track_BuildProjTables();
     Gfx_BuildTexVStep();
 
-    JB_DBG(3);
 
     if (!AppAssets_Load(back)) {
         AppAssets_Free();
@@ -370,7 +359,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    JB_DBG(4);
 
     /* JumpyBall.exe Game_Init 0x000113bc calls Font_Load 0x0001f4d8 before the
        first Screen_Set 0x00013678. */
@@ -387,7 +375,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    JB_DBG(5);
 
     jb_ctx.screen      = back;
     jb_ctx.tex_water_h = &jb_a.tex_water_h;
@@ -427,9 +414,7 @@ int main(int argc, char **argv)
     jb_pl.checkpoint_y  = jb_checkpoint_y;
     jb_pl.checkpoint_n  = &jb_checkpoint_n;
     jb_pl.z_axis_damped = 0;
-    JB_DBG(6);
     Player_Respawn(&jb_pl);
-    JB_DBG(7);
 
     /* JumpyBall.exe Level_Begin 0x0001376c stores 0 to g_hudR 0x00026280,
        g_hudG 0x00026284 and g_hudB 0x00026288 while g_theme 0x00026370 is 0. */
@@ -467,23 +452,18 @@ int main(int argc, char **argv)
     jb_kc.view_center_x = JB_VIEW_CENTER_X;
     jb_kc.active        = 0;
     jb_kc.step          = 0;
-    JB_DBG(0);
     KeyConfig_Load();
-    JB_DBG(3);
 
     jb_back       = back;
     jb_dump_path  = dump_path;
     jb_prev_ticks = Platform_Ticks();
-    JB_DBG(7);
     if (start_level >= 0) {
         jb_mode = JB_MODE_GAME;
         BeginLevel(start_level, jb_prev_ticks);
     } else {
         Menu_ScreenSet(&jb_m, start_screen, start_index);
-        JB_DBG(2);
         Audio_MusicPlay(JB_MUS_MENU);
     }
-    JB_DBG(1);
 
 #ifdef __EMSCRIPTEN__
     /* The browser owns the frame clock: hand Frame to requestAnimationFrame

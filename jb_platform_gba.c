@@ -125,19 +125,6 @@ void Platform_Shutdown(void)
 {
 }
 
-void Platform_DebugMarker(int idx)
-{
-    static const uint16_t colors[8] = {
-        0x001Fu, 0x03E0u, 0x7C00u, 0x03FFu,
-        0x7FE0u, 0x7C1Fu, 0x7FFFu, 0x4210u
-    };
-    int i;
-
-    REG_DISPCNT = DISPCNT_MODE3 | DISPCNT_BG2;
-    for (i = 0; i < GBA_SCREEN_W * GBA_SCREEN_H; i++)
-        GBA_VRAM[i] = colors[idx & 7];
-}
-
 jb_surface *Platform_BackBuffer(void)
 {
     return &jb_back;
