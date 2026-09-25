@@ -3,6 +3,19 @@
 
 #include <string.h>
 
+/* GBATEK "GBA Memory Map": the 32 KB IWRAM at 0x03000000 is a 32-bit zero-wait
+   bus, versus the Game Pak's waited 16-bit bus, so ARM code there fetches one
+   cycle per instruction; the devkitARM gba crt0 copies the .iwram section from
+   ROM at startup.  ROM is past the THUMB BL range from IWRAM, so calls out of
+   these functions use long_call.  GBA-only; other backends see a plain
+   definition. */
+#ifdef JB_BACKEND_GBA
+#define JB_IWRAM_CODE \
+    __attribute__((section(".iwram"), long_call, target("arm")))
+#else
+#define JB_IWRAM_CODE
+#endif
+
 /* JumpyBall.exe Gfx_CreateBackBuffer 0x00021698, 0x000269e0 / 0x000269e4 /
    0x000269e8 .data initialisers. */
 int jb_clip_w     = 240;
@@ -30,7 +43,7 @@ uint16_t Color_Pack16If16bpp(const jb_surface *dst, uint32_t colorref)
 }
 
 /* JumpyBall.exe Color_Blend 0x00023c3c. */
-uint16_t Color_Blend(const jb_surface *dst, uint16_t src, uint16_t dstpix, int blend)
+JB_IWRAM_CODE uint16_t Color_Blend(const jb_surface *dst, uint16_t src, uint16_t dstpix, int blend)
 {
     int sr, sg, sb, dr, dg, db, inv, r, g, b;
     unsigned out;
@@ -55,7 +68,7 @@ uint16_t Color_Blend(const jb_surface *dst, uint16_t src, uint16_t dstpix, int b
 
 /* JumpyBall.exe FUN_00023ddc 0x00023ddc, the pixel operation of
    Blit_Glyph_Core 0x00022288. */
-uint16_t Color_MaskTint(const jb_surface *dst, uint16_t src, uint16_t dstpix,
+JB_IWRAM_CODE uint16_t Color_MaskTint(const jb_surface *dst, uint16_t src, uint16_t dstpix,
                         int r, int g, int b)
 {
     int dr, dg, db, cov, inv, orr, ogg, obb;
@@ -76,7 +89,7 @@ uint16_t Color_MaskTint(const jb_surface *dst, uint16_t src, uint16_t dstpix,
 }
 
 /* JumpyBall.exe Blit_Core 0x00021a98. */
-int Blit_Core(const jb_surface *dst, int x, int y, int w, int h,
+JB_IWRAM_CODE int Blit_Core(const jb_surface *dst, int x, int y, int w, int h,
               const jb_sprite *src, int src_x, int src_y, unsigned key)
 {
     uint16_t *drow;
@@ -137,7 +150,7 @@ int Blit_Core(const jb_surface *dst, int x, int y, int w, int h,
 }
 
 /* JumpyBall.exe Blit_Keyed 0x000239f8 -> Blit_Keyed_Core 0x00022574. */
-int Blit_Keyed(const jb_surface *dst, int x, int y, int w, int h,
+JB_IWRAM_CODE int Blit_Keyed(const jb_surface *dst, int x, int y, int w, int h,
                const jb_sprite *src, int blend, unsigned key,
                int src_x, int src_y)
 {
@@ -189,7 +202,7 @@ int Blit_Keyed(const jb_surface *dst, int x, int y, int w, int h,
 
 /* JumpyBall.exe Blit_Glyph 0x000239ac -> Blit_Glyph_Core 0x00022288; every pixel
    goes through FUN_00023ddc 0x00023ddc and there is no colour key. */
-int Blit_Glyph(const jb_surface *dst, int x, int y, int w, int h,
+JB_IWRAM_CODE int Blit_Glyph(const jb_surface *dst, int x, int y, int w, int h,
                const jb_sprite *src, int r, int g, int b,
                int src_x, int src_y)
 {
