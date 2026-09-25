@@ -27,22 +27,26 @@
 
 #define JB_MSG_MAX 2048
 
-/* JumpyBall.exe Game_Init 0x000113bc selects the 176x220 layout on its
-   g_screenW == 0xb0 branch; on the 240x160 GBA panel the game composites in
-   that smaller native layout (about half the per-frame pixels), while the menu
-   keeps the 240x320 layout the shared back buffer is sized for. */
+/* JumpyBall.exe Game_Init 0x000113bc drives the perspective scroller from
+   g_viewBottom upward (Track_DrawFrame) and pins the ball JB_BALL_Y_BIAS above
+   it (jb_ball.c BaseY), both independent of g_viewH, so the native 240x320
+   layout with g_viewBottom cropped to the 160-line GBA panel is an exact
+   viewport crop - full 240 width, native tile_size, present 1:1 (no /2
+   overdraw), only the far distance clipped off the top. */
 #ifdef JB_BACKEND_GBA
-#define JB_GAME_VIEW_W        JB_SMALL_VIEW_W
-#define JB_GAME_VIEW_H        JB_SMALL_VIEW_H
-#define JB_GAME_VIEW_CENTER_X JB_SMALL_VIEW_CENTER_X
-#define JB_GAME_TILE_SIZE     JB_SMALL_TILE_SIZE
-#define JB_GAME_LAYOUT_MODE   JB_LAYOUT_176x220
+#define JB_GAME_VIEW_W        JB_VIEW_W
+#define JB_GAME_VIEW_H        160
+#define JB_GAME_VIEW_CENTER_X JB_VIEW_CENTER_X
+#define JB_GAME_TILE_SIZE     JB_TILE_SIZE
+#define JB_GAME_LAYOUT_MODE   JB_LAYOUT_240x320
+#define JB_GAME_PRESENT_SCALE 1
 #else
 #define JB_GAME_VIEW_W        JB_VIEW_W
 #define JB_GAME_VIEW_H        JB_VIEW_H
 #define JB_GAME_VIEW_CENTER_X JB_VIEW_CENTER_X
 #define JB_GAME_TILE_SIZE     JB_TILE_SIZE
 #define JB_GAME_LAYOUT_MODE   JB_LAYOUT_240x320
+#define JB_GAME_PRESENT_SCALE 2
 #endif
 
 /* The GBA JB_MENU_HALF build composites the menu at 120x160 - the 240x320
@@ -304,7 +308,8 @@ static void Frame(void)
         Platform_SetPresentView(JB_MENU_VIEW_W, JB_MENU_VIEW_H,
                                 JB_MENU_PRESENT_SCALE);
     else
-        Platform_SetPresentView(JB_GAME_VIEW_W, JB_GAME_VIEW_H, 2);
+        Platform_SetPresentView(JB_GAME_VIEW_W, JB_GAME_VIEW_H,
+                                JB_GAME_PRESENT_SCALE);
 #endif
 
     Platform_Present();
