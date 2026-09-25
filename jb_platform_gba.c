@@ -17,10 +17,10 @@
 #define REG_DISPCNT  (*(volatile uint16_t *)0x04000000u)
 #define REG_VCOUNT   (*(volatile uint16_t *)0x04000006u)
 #define REG_KEYINPUT (*(volatile uint16_t *)0x04000130u)
-#define REG_TM2CNT_L (*(volatile uint16_t *)0x0400010Cu)
-#define REG_TM2CNT_H (*(volatile uint16_t *)0x0400010Eu)
-#define REG_TM3CNT_L (*(volatile uint16_t *)0x04000110u)
-#define REG_TM3CNT_H (*(volatile uint16_t *)0x04000112u)
+#define REG_TM2CNT_L (*(volatile uint16_t *)0x04000108u)
+#define REG_TM2CNT_H (*(volatile uint16_t *)0x0400010Au)
+#define REG_TM3CNT_L (*(volatile uint16_t *)0x0400010Cu)
+#define REG_TM3CNT_H (*(volatile uint16_t *)0x0400010Eu)
 #define GBA_VRAM     ((volatile uint16_t *)0x06000000u)
 
 #define GBA_SCREEN_W 240
