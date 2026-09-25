@@ -31,6 +31,13 @@ jb_surface *Platform_BackBuffer(void);
 
 void Platform_Present(void);
 
+#ifdef JB_BACKEND_GBA
+/* Selects the sub-rectangle of the back buffer the GBA present samples this
+   frame: the 240x320 buffer is shared, the menu shows all of it while the game
+   shows its JumpyBall.exe Game_Init 0x000113bc 176x220 layout, letterboxed. */
+void Platform_SetPresentView(int w, int h);
+#endif
+
 /* Returns 0 once the window has been closed. */
 int Platform_PollEvents(void);
 

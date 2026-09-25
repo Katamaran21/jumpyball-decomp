@@ -27,6 +27,24 @@
 
 #define JB_MSG_MAX 2048
 
+/* JumpyBall.exe Game_Init 0x000113bc selects the 176x220 layout on its
+   g_screenW == 0xb0 branch; on the 240x160 GBA panel the game composites in
+   that smaller native layout (about half the per-frame pixels), while the menu
+   keeps the 240x320 layout the shared back buffer is sized for. */
+#ifdef JB_BACKEND_GBA
+#define JB_GAME_VIEW_W        JB_SMALL_VIEW_W
+#define JB_GAME_VIEW_H        JB_SMALL_VIEW_H
+#define JB_GAME_VIEW_CENTER_X JB_SMALL_VIEW_CENTER_X
+#define JB_GAME_TILE_SIZE     JB_SMALL_TILE_SIZE
+#define JB_GAME_LAYOUT_MODE   JB_LAYOUT_176x220
+#else
+#define JB_GAME_VIEW_W        JB_VIEW_W
+#define JB_GAME_VIEW_H        JB_VIEW_H
+#define JB_GAME_VIEW_CENTER_X JB_VIEW_CENTER_X
+#define JB_GAME_TILE_SIZE     JB_TILE_SIZE
+#define JB_GAME_LAYOUT_MODE   JB_LAYOUT_240x320
+#endif
+
 /* JumpyBall.exe Player_Respawn 0x00012f18 stores 0x32 zero words at g_rowShift
    0x00061930, and Level_Begin 0x0001376c refills it from g_rowShiftSrc
    0x0002f6d8, whose generator writes 0 to every entry while g_altTrackMode
@@ -251,7 +269,7 @@ static void Frame(void)
         /* JumpyBall.exe Level_Begin 0x0001376c fills g_backdrop 0x00061b28
            with Blit_NoKey 0x00023a3c of g_viewW x g_viewH from the theme
            bitmap LoadBitmapW picked for g_theme 0x00064944. */
-        Blit_NoKey(jb_back, 0, 0, JB_VIEW_W, JB_VIEW_H,
+        Blit_NoKey(jb_back, 0, 0, JB_GAME_VIEW_W, JB_GAME_VIEW_H,
                    (jb_stg.backdrop_res == JB_RES_BACKDROP_DESERT)
                        ? &jb_a.backdrop_desert : &jb_a.backdrop_ice, 0, 0);
 
@@ -265,6 +283,13 @@ static void Frame(void)
             Timer_DrawHud(jb_back, jb_pl.cam_row, jb_ball_st.hud_r,
                           jb_ball_st.hud_g, jb_ball_st.hud_b);
     }
+
+#ifdef JB_BACKEND_GBA
+    if (jb_kc.active || jb_mode == JB_MODE_MENU)
+        Platform_SetPresentView(JB_VIEW_W, JB_VIEW_H);
+    else
+        Platform_SetPresentView(JB_GAME_VIEW_W, JB_GAME_VIEW_H);
+#endif
 
     Platform_Present();
 
@@ -392,16 +417,17 @@ int main(int argc, char **argv)
        Color_Pack16If16bpp(g_screen 0x00061b10, 0x800080), and
        TrackRow_DrawGrass 0x00019198 passes it as the blit colour key. */
     jb_ctx.sign_key    = Color_Pack16If16bpp(back, 0x00800080u);
-    jb_ctx.view_w      = JB_VIEW_W;
-    jb_ctx.view_bottom = JB_VIEW_BOTTOM;
-    jb_ctx.layout_mode = JB_LAYOUT_240x320;
+    jb_ctx.view_w      = JB_GAME_VIEW_W;
+    jb_ctx.view_bottom = JB_GAME_VIEW_H;
+    jb_ctx.layout_mode = JB_GAME_LAYOUT_MODE;
     jb_ctx.map_cols    = JB_MAP_COLS;
 
     jb_st.row_shift     = jb_row_shift;
     jb_st.tile_grid     = jb_tile_grid;
     jb_st.map_cols      = JB_MAP_COLS;
-    jb_st.view_center_x = JB_VIEW_CENTER_X;
-    jb_st.tile_size     = JB_TILE_SIZE;
+    jb_st.view_center_x = JB_GAME_VIEW_CENTER_X;
+    jb_st.tile_size     = JB_GAME_TILE_SIZE;
+    jb_st.view_bottom   = JB_GAME_VIEW_H;
     jb_st.ball_prev_x   = 0.0f;
 
     /* JumpyBall.exe .data g_autoJump 0x00026430 1, g_mapCols 0x0002628c 0x10,
@@ -424,9 +450,9 @@ int main(int argc, char **argv)
     jb_ball_st.hud_r           = 0;
     jb_ball_st.hud_g           = 0;
     jb_ball_st.hud_b           = 0;
-    jb_ball_st.layout_mode     = JB_LAYOUT_240x320;
-    jb_ball_st.view_bottom     = JB_VIEW_BOTTOM;
-    jb_ball_st.view_center_x   = JB_VIEW_CENTER_X;
+    jb_ball_st.layout_mode     = JB_GAME_LAYOUT_MODE;
+    jb_ball_st.view_bottom     = JB_GAME_VIEW_H;
+    jb_ball_st.view_center_x   = JB_GAME_VIEW_CENTER_X;
 
     jb_m.screen        = back;
     jb_m.backdrop      = &jb_a.backdrop_menu;

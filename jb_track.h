@@ -36,6 +36,7 @@ typedef struct {
     int                  map_cols;
     int                  view_center_x;
     int                  tile_size;
+    int                  view_bottom;
 } jb_track_state;
 
 typedef void (*jb_track_row_fn)(const jb_track_row *row, void *user);

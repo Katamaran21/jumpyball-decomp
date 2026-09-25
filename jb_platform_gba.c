@@ -88,6 +88,8 @@ static uint16_t   jb_backbuf[JB_VIEW_W * (JB_VIEW_H + 1)]
 static jb_surface jb_back;
 static int        jb_w;
 static int        jb_h;
+static int        jb_present_w;
+static int        jb_present_h;
 
 #define JB_RAWQ 32
 static int jb_rawq[JB_RAWQ];
@@ -124,6 +126,8 @@ int Platform_Init(int w, int h, int scale, const char *title)
 
     jb_w = w;
     jb_h = h;
+    jb_present_w = w;
+    jb_present_h = h;
 
     jb_back.pixels  = jb_backbuf;
     jb_back.bpp     = 0x10;
@@ -161,9 +165,25 @@ jb_surface *Platform_BackBuffer(void)
     return &jb_back;
 }
 
+void Platform_SetPresentView(int w, int h)
+{
+    int i;
+
+    if (w == jb_present_w && h == jb_present_h)
+        return;
+    jb_present_w = w;
+    jb_present_h = h;
+
+    for (i = 0; i < GBA_SCREEN_W * GBA_SCREEN_H; i++)
+        GBA_VRAM[i] = 0;
+}
+
 JB_IWRAM_CODE void Platform_Present(void)
 {
-    int off_x = (GBA_SCREEN_W - jb_w / 2) / 2;
+    int out_w  = jb_present_w / 2;
+    int out_h  = jb_present_h / 2;
+    int off_x  = (GBA_SCREEN_W - out_w) / 2;
+    int off_y  = (GBA_SCREEN_H - out_h) / 2;
     int dy;
 
     /* GBATEK "DISPSTAT": scanlines 160..227 are the vertical blank.  The audio
@@ -176,10 +196,10 @@ JB_IWRAM_CODE void Platform_Present(void)
         while (jb_vblank_ticks == t) {}
     }
 
-    for (dy = 0; dy < GBA_SCREEN_H; dy++) {
+    for (dy = 0; dy < out_h; dy++) {
         const uint16_t    *src = jb_backbuf + (dy * 2) * jb_w;
         volatile uint32_t *dst =
-            (volatile uint32_t *)(GBA_VRAM + dy * GBA_SCREEN_W + off_x);
+            (volatile uint32_t *)(GBA_VRAM + (dy + off_y) * GBA_SCREEN_W + off_x);
         int                dx;
 
         /* GBATEK "LCD Color Definitions": the framebuffer is BGR555 (red in
@@ -189,7 +209,7 @@ JB_IWRAM_CODE void Platform_Present(void)
            "GBA Memory Map": VRAM takes 16- or 32-bit accesses, so two adjacent
            BGR555 pixels pack into one 32-bit store (low halfword first on the
            little-endian ARM7TDMI), halving the write count. */
-        for (dx = 0; dx < jb_w / 4; dx++) {
+        for (dx = 0; dx < out_w / 2; dx++) {
             unsigned p0 = src[dx * 4];
             unsigned p1 = src[dx * 4 + 2];
             unsigned c0 = ((p0 >> 11) & 0x001Fu) |
