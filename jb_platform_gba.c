@@ -87,6 +87,16 @@ static void PushRawKey(int code)
     }
 }
 
+static void JbDbgMark(int slot, unsigned color)
+{
+    int y0 = slot * 12 + 2;
+    int y, x;
+
+    for (y = y0; y < y0 + 10; y++)
+        for (x = 2; x < 12; x++)
+            GBA_VRAM[y * GBA_SCREEN_W + x] = (uint16_t)color;
+}
+
 int Platform_Init(int w, int h, int scale, const char *title)
 {
     int i;
@@ -118,6 +128,7 @@ int Platform_Init(int w, int h, int scale, const char *title)
     REG_TM3CNT_H = GBA_TM_CASCADE | GBA_TM_ENABLE;
     REG_TM2CNT_H = GBA_TM_PRESCALE_1024 | GBA_TM_ENABLE;
 
+    JbDbgMark(0, 0x001Fu);
     return 1;
 }
 
@@ -134,6 +145,8 @@ void Platform_Present(void)
 {
     int off_x = (GBA_SCREEN_W - jb_w / 2) / 2;
     int dy;
+
+    JbDbgMark(2, 0x7C00u);
 
     /* GBATEK "DISPSTAT": scanlines 160..227 are the vertical blank.  Copy while
        the beam is there so the visible frame is not torn mid-scan. */
@@ -157,6 +170,8 @@ void Platform_Present(void)
                                  ((p << 10) & 0x7C00u));
         }
     }
+
+    JbDbgMark(3, 0x03FFu);
 }
 
 int Platform_PollEvents(void)
@@ -168,6 +183,8 @@ int Platform_PollEvents(void)
     };
     unsigned cur = (unsigned)(~REG_KEYINPUT) & GBA_KEY_MASK;
     int      k, i;
+
+    JbDbgMark(1, 0x03E0u);
 
     for (k = 0; k < JB_KEY_COUNT; k++)
         jb_keys[k] = (cur & (unsigned)jb_keymap[k]) ? 1 : 0;
