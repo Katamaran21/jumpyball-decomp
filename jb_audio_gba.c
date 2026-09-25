@@ -68,6 +68,11 @@ static short  jb_mix_buf[JB_FRAMES];
 static int    jb_play_idx;
 static int    jb_audio_on;
 
+/* Frame counter bumped at VBlank start; jb_platform_gba.c's Platform_Present
+   waits on it instead of polling VCOUNT, since this ISR can span the whole
+   VBlank window and hide it from a VCOUNT poll. */
+volatile unsigned jb_vblank_ticks;
+
 static int jb_master_vol = JB_MASTER_VOLUME_MAX;
 
 void Platform_SoundMasterVolume(int volume)
@@ -146,6 +151,7 @@ static void __attribute__((target("arm"))) JbAudioISR(void)
     unsigned short flags = REG_IF;
 
     if (flags & 0x0001u) {
+        jb_vblank_ticks++;
         jb_play_idx ^= 1;
         StartDma(jb_dma_buf[jb_play_idx]);
         FillBuffer(jb_dma_buf[jb_play_idx ^ 1]);

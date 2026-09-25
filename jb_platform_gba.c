@@ -77,6 +77,8 @@ static int jb_keymap[JB_KEY_COUNT] = {
 static int      jb_keys[JB_KEY_COUNT];
 static unsigned jb_prev_keys;
 
+extern volatile unsigned jb_vblank_ticks;
+
 static void PushRawKey(int code)
 {
     int next = (jb_rawq_head + 1) % JB_RAWQ;
@@ -148,11 +150,15 @@ void Platform_Present(void)
 
     JbDbgMark(2, 0x7C00u);
 
-    /* GBATEK "DISPSTAT": scanlines 160..227 are the vertical blank.  Copy while
-       the beam is there so the visible frame is not torn mid-scan. */
-    while (REG_VCOUNT >= GBA_SCREEN_H) {}
-    JbDbgMark(4, 0x7FE0u);
-    while (REG_VCOUNT < GBA_SCREEN_H) {}
+    /* GBATEK "DISPSTAT": scanlines 160..227 are the vertical blank.  The audio
+       backend's VBlank ISR can span that whole window, so a main-thread
+       while (REG_VCOUNT < 160) poll may never see VCOUNT in vblank and spins
+       forever; wait on the ISR's frame counter instead. */
+    {
+        unsigned t = jb_vblank_ticks;
+
+        while (jb_vblank_ticks == t) {}
+    }
     JbDbgMark(5, 0x7FFFu);
 
     for (dy = 0; dy < GBA_SCREEN_H; dy++) {
