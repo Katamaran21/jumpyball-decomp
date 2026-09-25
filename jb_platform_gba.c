@@ -33,6 +33,14 @@
 #define REG_MEMCNT           (*(volatile uint32_t *)0x04000800u)
 #define GBA_MEMCNT_EWRAM_1WS 0x0E000020u
 
+/* GBATEK "GBA System Control": Waitstate Control at 0x04000204.  The Game Pak
+   sits in wait-state 0 (0x08000000), where both the code and the embedded
+   assets are read; 0x4317 sets WS0 to 3/1 cycles (reset is 4/2) and enables the
+   Game Pak prefetch buffer (bit 14), so sequential code and asset fetches from
+   ROM run faster. */
+#define REG_WAITCNT      (*(volatile uint16_t *)0x04000204u)
+#define GBA_WAITCNT_FAST 0x4317u
+
 #define GBA_SCREEN_W 240
 #define GBA_SCREEN_H 160
 
@@ -118,7 +126,8 @@ int Platform_Init(int w, int h, int scale, const char *title)
     jb_clip_h     = h;
     jb_clip_h_row = h;
 
-    REG_MEMCNT = GBA_MEMCNT_EWRAM_1WS;
+    REG_MEMCNT  = GBA_MEMCNT_EWRAM_1WS;
+    REG_WAITCNT = GBA_WAITCNT_FAST;
 
     /* Clear VRAM once; Platform_Present only ever writes the centred game
        region, so the letterbox side bars stay black afterwards. */
